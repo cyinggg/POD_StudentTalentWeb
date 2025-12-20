@@ -1,0 +1,5 @@
+# Git to ignore vitrual environment, cache, env file and Python bytecode
+venv/
+__pycache__/
+.env
+*.pyc

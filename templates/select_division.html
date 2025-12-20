@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Select Division</title>
+    <link rel="stylesheet" href="/static/styles.css">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 40px;
+            text-align: center;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            font-size: 28px;
+            color: #222;
+            font-weight: 600;
+        }
+
+        .division-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .division-button {
+            display: block;
+            width: 100%;
+            padding: 18px;
+            margin: 12px 0;
+            background: #2F6FED;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-decoration: none;
+        }
+
+        .division-button:hover {
+            background: #1c4fc9;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Select Your Division</h1>
+
+<div class="division-container">
+
+    {% for div in divisions %}
+        <a class="division-button"
+           href="/start_login/{{ div | urlencode }}">
+            {{ div }}
+        </a>
+    {% endfor %}
+
+</div>
+
+</body>
+</html>

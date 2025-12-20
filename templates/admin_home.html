@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<h2 class="text-xl font-bold mb-6">POD Staff & Administration</h2>
+
+<div class="flex gap-6">
+    <a href="/calendar"
+       class="bg-blue-600 text-white px-6 py-4 rounded hover:bg-blue-700">
+        View Calendar
+    </a>
+
+    <a href="/admin_approvals"
+       class="bg-green-600 text-white px-6 py-4 rounded hover:bg-green-700">
+        Approve / Reject Bookings
+    </a>
+</div>
+{% endblock %}

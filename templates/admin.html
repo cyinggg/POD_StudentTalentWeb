@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>POD Staff Admin Panel</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            margin: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            text-align: center;
+        }
+
+        th {
+            background: #2F6FED;
+            color: white;
+            font-weight: 600;
+        }
+
+        .pending {
+            background: #FFF3CD;
+        }
+
+        .approved {
+            background: #D4EDDA;
+        }
+
+        .rejected {
+            background: #F8D7DA;
+        }
+
+        button {
+            padding: 6px 12px;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .approve-btn {
+            background: #28a745;
+            color: white;
+        }
+
+        .approve-btn:hover {
+            background: #1f7f34;
+        }
+
+        .reject-btn {
+            background: #dc3545;
+            color: white;
+        }
+
+        .reject-btn:hover {
+            background: #a71d2a;
+        }
+
+        .status-col {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>POD Staff / Administration – Application Review</h1>
+
+<table>
+    <tr>
+        <th>Timestamp</th>
+        <th>Division</th>
+        <th>Student ID</th>
+        <th>Name</th>
+        <th>Date</th>
+        <th>Shift</th>
+        <th>Level</th>
+        <th>Slot</th>
+        <th>Type</th>
+        <th>Details</th>
+        <th>Status</th>
+        <th>Action</th>
+    </tr>
+
+    {% for a in applications %}
+    <tr class="
+        {% if a.status == 'Pending' %}pending
+        {% elif a.status == 'Approved' %}approved
+        {% else %}rejected
+        {% endif %}
+    ">
+        <td>{{ a.timestamp }}</td>
+        <td>{{ a.division }}</td>
+        <td>{{ a.student_id }}</td>
+        <td>{{ a.student_name }}</td>
+        <td>{{ a.date }}</td>
+        <td>{{ a.shift_type }}</td>
+        <td>{{ a.slot_level }}</td>
+        <td>{{ a.slot_number }}</td>
+        <td>{{ a.type }}</td>
+        <td>{{ a.details }}</td>
+
+        <td class="status-col">{{ a.status }}</td>
+
+        <td>
+            {% if a.status == 'Pending' %}
+            <form method="POST" style="display:inline;">
+                <input type="hidden" name="row_index" value="{{ a.row_index }}">
+                <input type="hidden" name="action" value="approve">
+                <button type="submit" class="approve-btn">Approve</button>
+            </form>
+
+            <form method="POST" style="display:inline;">
+                <input type="hidden" name="row_index" value="{{ a.row_index }}">
+                <input type="hidden" name="action" value="reject">
+                <button type="submit" class="reject-btn">Reject</button>
+            </form>
+            {% else %}
+            —
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>

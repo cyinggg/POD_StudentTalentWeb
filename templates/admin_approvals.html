@@ -1,0 +1,26 @@
+{% extends "base.html" %} 
+{% block title %}Booking Approvals{% endblock %}
+
+{% block content %}
+<h2 class="text-xl font-bold mb-4">Student Coach Booking Applications</h2>
+
+<table class="min-w-full bg-white border">
+    <thead>
+        <tr>
+            <th class="border px-4 py-2">Date</th>
+            <th class="border px-4 py-2">Shift</th>
+            <th class="border px-4 py-2">Level</th>
+            <th class="border px-4 py-2">Slot</th>
+            <th class="border px-4 py-2">Student Name</th>
+            <th class="border px-4 py-2">Action</th>
+        </tr>
+    </thead>
+    <tbody id="approvalTable">
+    </tbody>
+</table>
+
+<!-- Include jQuery and admin.js -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="{{ url_for('static', filename='admin.js') }}"></script>
+
+{% endblock %}
