@@ -11,44 +11,51 @@
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
-    <!-- Your custom JS -->
-    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
-
     <!-- Optional custom styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body class="bg-gray-100 font-sans">
 
     <!-- Navbar/Header -->
-    <header class="bg-blue-700 text-white px-6 py-4 flex justify-between items-center">
+    <header class="bg-gray-100 text-gray-900 px-6 py-4 flex justify-between items-center border-b">
 
-        <!-- Left: System Title -->
-        <div class="text-xl font-bold">
-            POD Student Talent System
+        <!-- Left: System Title + Welcome -->
+        <div class="flex flex-col">
+            <div class="text-xl font-bold">POD Student Talent System</div>
+            {% if session.get("student_id") %}
+                <div class="text-sm mt-1">
+                    Welcome, <span class="font-semibold">{{ session.get('student_name') }}</span>
+                    {% if session.get("role") %}
+                        — <span class="italic">{{ session.get("role") }}</span>
+                    {% endif %}
+                </div>
+            {% endif %}
         </div>
 
         <!-- Right: Navigation -->
-        <nav class="flex gap-4 text-sm font-semibold">
+        <nav class="flex gap-4 text-sm font-semibold items-center">
 
-            {% if session.get("student_id") %}
-                <a href="/calendar"
-                class="hover:underline">
-                    Calendar
-                </a>
+            {% if session.get("student_id") and session.get("role") != "POD Staff and Administration" %}
+            <a href="/calendar" class="hover:underline">Calendar</a>
             {% endif %}
 
             {% if session.get("role") == "POD Staff and Administration" %}
+            <a href="/admin_home" class="hover:underline">Admin Dashboard</a>
+            {% endif %}
+
+            <!-- {% if session.get("role") == "POD Staff and Administration" %}
                 <a href="/admin_approvals"
                 class="bg-red-500 px-3 py-1 rounded hover:bg-red-600">
                     Admin Approvals
                 </a>
-            {% endif %}
+            {% endif %} -->
 
             {% if session.get("student_id") %}
-                <a href="/logout"
-                class="hover:underline">
-                    Logout
-                </a>
+            <button id="logoutBtn"
+                    type="button"
+                    class="hover:underline bg-transparent border-none cursor-pointer text-gray-900 font-semibold">
+                Logout
+            </button>
             {% endif %}
 
         </nav>
@@ -67,5 +74,9 @@
         &copy; {{ current_time.year }} POD Student Talent
     </footer>
 
+    <!-- Your custom JS -->
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+
 </body>
+
 </html>

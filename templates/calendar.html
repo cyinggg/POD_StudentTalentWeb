@@ -1,43 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ role }} Calendar</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% extends "base.html" %}
 
-    <!-- Tailwind -->
-    <script src="https://cdn.tailwindcss.com"></script>
+{% block title %}{{ role }} Calendar{% endblock %}
 
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+{% block content %}
 
-    <!-- ROLE FLAGS -->
-    <script>
-        window.isCommittee = {{ "true" if role == "Student Talent Committee and Ambassador" else "false" }};
-        window.isCoach = {{ "true" if role == "Student Coach" else "false" }};
-        window.userRole = "{{ role }}";
-
-        // Ensure studentId exists
-        window.studentId = "{{ session['student_id'] }}";
-    </script>
-
-    <!-- Main JS -->
-    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
-</head>
-
-<body class="bg-gray-100">
-
-<!-- HEADER -->
-<div class="bg-blue-700 text-white p-4 flex items-center justify-between">
-    <div class="text-xl font-bold">
-        {{ role }} — Welcome, {{ student_name }}
-    </div>
-
-    <a href="{{ url_for('select_division') }}"
-       class="bg-white text-blue-700 px-4 py-2 rounded font-semibold hover:bg-gray-100">
-        Back to Home
-    </a>
-</div>
+<!-- ROLE FLAGS -->
+<script>
+    window.isCommittee = {{ "true" if role == "Student Talent Committee and Ambassador" else "false" }};
+    window.isCoach = {{ "true" if role == "Student Coach" else "false" }};
+    window.userRole = "{{ role }}";
+    window.studentId = "{{ session['student_id'] }}";
+</script>
 
 <!-- CALENDAR -->
 <div class="max-w-4xl mx-auto bg-white p-4 mt-6 rounded shadow">
@@ -135,5 +108,4 @@
     </div>
 </div>
 
-</body>
-</html>
+{% endblock %}

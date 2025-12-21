@@ -10,9 +10,31 @@ const isCommittee = window.isCommittee || false;
 const isCoach = window.isCoach || false; // set in template for Student Coach
 
 // ========================
+// GENERAL FUNCTIONS
+// ========================
+function initLogoutButton() {
+    const btn = document.getElementById("logoutBtn");
+    if (!btn) return;
+
+    btn.addEventListener("click", () => {
+        const choice = confirm(
+            "Back to Division Selection?"
+        );
+
+        if (choice) {
+            // Optional: call /logout to clear session
+            window.location.href = "/logout"; 
+        } 
+        // Else: do nothing, user can close browser manually
+    });
+}
+
+// ========================
 // ON DOCUMENT READY
 // ========================
 $(document).ready(function () {
+
+    initLogoutButton();
 
     if (window.isCommittee) {
         loadCommitteeEntries();
@@ -309,7 +331,7 @@ function handleCoachSlotClick(shift, level, slot) {
     // ==========================
     if (myApp && (myApp.status === "Pending" || myApp.status === "Approved")) {
 
-        if (!confirm("Cancel this shift preference?")) return;
+        if (!confirm("Cancel this shift?")) return;
 
         $.ajax({
             url: "/api/coach/cancel",
@@ -349,7 +371,7 @@ function handleCoachSlotClick(shift, level, slot) {
     const preference = myBookingsMonth.length + 1;
 
     if (preference > 3) {
-        alert("You can only select up to 3 preferences per month.");
+        alert("You can only select up to 3 shifts per month.");
         return;
     }
 
