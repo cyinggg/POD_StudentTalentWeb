@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from pytz import timezone
 import calendar
 import os
+import pandas as pd
 
 app = Flask(__name__)
 
@@ -79,15 +80,18 @@ def normalize_contact(v):
     return str(v).strip()
 
 def ensure_applications_file():
-    """Ensure applications.xlsx exists"""
+    # Ensure applications.xlsx exists
     if os.path.exists(APPLICATIONS_FILE):
         return
+
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.append([
-        "Timestamp","Division","StudentID","StudentName","Date",
-        "ShiftType","SlotLevel","SlotNumber",
-        "Preference","Type","Details","Status"
+        "Timestamp", "Division", "StudentID", "StudentName",
+        "Date", "ShiftType", "SlotLevel", "SlotNumber",
+        "Preference", "Type", "Details",
+        "Status", "WaitingCount",
+        "AdminDecision", "AdminRemark", "DecisionTimestamp"
     ])
     wb.save(APPLICATIONS_FILE)
 
@@ -155,6 +159,44 @@ def update_application_status(date, shift, level, slot, student_id, status):
         wb.save(APPLICATIONS_FILE)
     return found
 
+def update_application_decision(
+    date, shift, level, slot, student_id,
+    decision, remark=""
+):
+    ensure_applications_file()
+    wb = openpyxl.load_workbook(APPLICATIONS_FILE)
+    ws = wb.active
+    found = False
+
+    for row in ws.iter_rows(min_row=2):
+        if (
+            row[1].value == "Student Coach" and
+            row[2].value == student_id and
+            row[4].value == date and
+            row[5].value == shift and
+            row[6].value == level and
+            row[7].value == slot
+        ):
+            # Status update (update_application_status logic preserved)
+            if decision == "Approved":
+                row[11].value = "Approved"
+            elif decision == "Rejected":
+                row[11].value = "Rejected"
+            else:
+                row[11].value = "Approved"
+
+            # New fields
+            row[13].value = decision
+            row[14].value = remark
+            row[15].value = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            found = True
+            break
+
+    if found:
+        wb.save(APPLICATIONS_FILE)
+    return found
+
 def load_committee_entries(division):
     ensure_committee_file()
     wb = openpyxl.load_workbook(COMMITTEE_FILE)
@@ -179,6 +221,10 @@ def load_committee_entries(division):
 # ROUTES
 # ==========================
 @app.route("/")
+def start_page():
+    return render_template("start.html")
+
+@app.route("/select_division")
 def select_division():
     divisions = [
         "POD Staff and Administration",
@@ -302,6 +348,59 @@ def logout():
     session.clear()
     return redirect(url_for("select_division"))
 
+@app.route("/projecthub")
+def projecthub_home():
+    return render_template("projecthub_home.html")
+
+@app.route("/projecthub/student_coach_schedule")
+def projecthub_duty_calendar():
+
+    ensure_applications_file()  # Make sure applications.xlsx exists
+
+    # Load Excel into DataFrame
+    df = pd.read_excel(APPLICATIONS_FILE)
+
+    # Build approved_bookings dict for template
+    approved_bookings = {}
+
+    for _, row in df.iterrows():
+        # Only consider rows where AdminDecision == "Approved"
+        if str(row.get("AdminDecision", "")).strip() != "Approved":
+            continue
+
+        date_str = row.get("Date")
+        if not isinstance(date_str, str):
+            # Ensure date is in YYYY-MM-DD format
+            date_str = pd.to_datetime(date_str).strftime("%Y-%m-%d")
+
+        shift = str(row.get("ShiftType"))
+        level = str(row.get("SlotLevel"))
+        slot = int(row.get("SlotNumber", 1))
+        student_name = str(row.get("StudentName"))
+
+        key = (date_str, shift, level, slot)
+        approved_bookings[key] = student_name
+
+    # Get current month/year for calendar display
+    sg = datetime.now()
+    year = sg.year
+    month = sg.month
+    month_name = calendar.month_name[month]
+    cal = calendar.Calendar(firstweekday=0).monthdayscalendar(year, month)
+
+    # Extract unique slot levels from current approved bookings for display
+    levels = sorted(df["SlotLevel"].dropna().unique())
+
+    return render_template(
+        "projecthub_duty_calendar.html",
+        approved_bookings=approved_bookings,
+        year=year,
+        month=month,
+        month_name=month_name,
+        cal=cal,
+        levels=levels  # pass levels for template loop
+    )
+
 # ==========================
 # COMMITTEE APIs
 # ==========================
@@ -400,6 +499,10 @@ def api_submit():
     wb.save(APPLICATIONS_FILE)
     return jsonify({"status": "success", "message": f"Shift booked (Pending) — Preference {current_pref}", "preference": current_pref})
 
+@app.route("/projecthub/my_bookings")
+def my_bookings():
+    return render_template("my_bookings.html")
+
 # ==========================
 # ADMIN ROUTES
 # ==========================
@@ -424,23 +527,25 @@ def admin_pending_applications():
     ws = wb.active
     applications = []
     for row in ws.iter_rows(min_row=2, values_only=True):
-        division = row[1]
-        status = str(row[11]).strip()
-        if division == "Student Coach" and status == "Pending":
-            applications.append({
-                "timestamp": row[0],
-                "division": row[1],
-                "student_id": row[2],
-                "student_name": row[3],
-                "date": row[4],
-                "shift_type": row[5],
-                "slot_level": row[6],
-                "slot_number": row[7],
-                "preference": row[8],
-                "type": row[9],
-                "details": row[10],
-                "status": row[11]
-            })
+        if row[1] != "Student Coach":
+            continue
+        applications.append({
+            "timestamp": row[0],
+            "division": row[1],
+            "student_id": row[2],
+            "student_name": row[3],
+            "date": row[4],
+            "shift_type": row[5],
+            "slot_level": row[6],
+            "slot_number": row[7],
+            "preference": row[8],
+            "type": row[9],
+            "details": row[10],
+            "status": row[11],
+            "waiting_count": row[12],
+            "admin_decision": row[13] if len(row) > 13 else "",
+            "admin_remark": row[14] if len(row) > 14 else ""
+        })
     return jsonify(applications)
 
 @app.route("/api/admin/approve", methods=["POST"])
@@ -472,6 +577,86 @@ def admin_reject():
         status="Rejected"
     )
     return jsonify({"status": "ok" if success else "not_found"})
+
+@app.route("/api/admin/decide", methods=["POST"])
+def admin_decide():
+    if session.get("role") != "POD Staff and Administration":
+        return jsonify({"status":"error", "message":"Unauthorized"}), 403
+
+    data = request.get_json()
+    date = data.get("date")
+    shift = data.get("shift")
+    level = data.get("level")
+    slot = data.get("slot")
+    student_id = data.get("student_id")
+    # Use 'status' if sent by JS, fallback to 'decision'
+    decision = data.get("status") or data.get("decision")
+    remark = data.get("remark", "")
+
+    ensure_applications_file()
+    wb = openpyxl.load_workbook(APPLICATIONS_FILE)
+    ws = wb.active
+
+    found = False
+    for row in ws.iter_rows(min_row=2):
+        if (
+            row[1].value == "Student Coach" and
+            str(row[2].value) == str(student_id) and
+            str(row[4].value) == str(date) and
+            row[5].value == shift and
+            row[6].value == level and
+            str(row[7].value) == str(slot)
+        ):
+            # Update AdminDecision & Remark
+            row[13].value = decision  # AdminDecision column
+            row[14].value = remark    # AdminRemark column
+
+            # Update Status only if Approved / Rejected (quick action effect)
+            if decision in ["Approved", "Rejected"]:
+                row[11].value = decision # Status column
+            found = True
+            break
+
+    if found:
+        wb.save(APPLICATIONS_FILE)
+        return jsonify({"status":"ok"})
+    else:
+        return jsonify({"status":"not_found", "message":"Row not found"})
+
+def admin_reallocate():
+    if session.get("role") != "POD Staff and Administration":
+        return jsonify({"status":"error","message":"Unauthorized"}),403
+
+    data = request.get_json()
+    date = data.get("date")
+    shift = data.get("shift")
+    level = data.get("level")
+    slot = data.get("slot")
+    student_id = data.get("student_id")
+
+    # Update the booking to Approved even if there is already an approved booking for the same slot
+    ensure_applications_file()
+    wb = openpyxl.load_workbook(APPLICATIONS_FILE)
+    ws = wb.active
+
+    found = False
+    for row in ws.iter_rows(min_row=2):
+        if (
+            row[1].value == "Student Coach" and
+            row[2].value == student_id and
+            row[4].value == date and
+            row[5].value == shift and
+            row[6].value == level and
+            row[7].value == slot
+        ):
+            row[11].value = "Approved"  # Status
+            row[13].value = "Approved via Reallocate"  # Admin Decision or Remark column
+            found = True
+            break
+    if found:
+        wb.save(APPLICATIONS_FILE)
+        return jsonify({"status":"ok"})
+    return jsonify({"status":"not_found"})
 
 # ==========================
 # RUN

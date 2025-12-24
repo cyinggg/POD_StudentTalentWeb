@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}E2ProjectHub – Student Coach On-duty Schedule{% endblock %}
+
+{% block content %}
+
+<div class="max-w-5xl mx-auto bg-white p-6 rounded shadow">
+
+    <h2 class="text-center text-2xl font-bold mb-2">
+        E2ProjectHub Student Coach On-duty Schedule
+    </h2>
+
+    <p class="text-center text-sm text-gray-500 mb-6">
+        {{ month_name }} {{ year }} · Read-only
+    </p>
+
+    <table class="w-full table-fixed border-collapse">
+        <thead>
+            <tr class="bg-gray-200">
+                <th class="p-2">Sun</th>
+                <th class="p-2">Mon</th>
+                <th class="p-2">Tue</th>
+                <th class="p-2">Wed</th>
+                <th class="p-2">Thu</th>
+                <th class="p-2">Fri</th>
+                <th class="p-2">Sat</th>
+            </tr>
+        </thead>
+
+        <tbody>
+        {% for week in cal %}
+            <tr>
+            {% for day in week %}
+                {% if day == 0 %}
+                    <td class="border p-4 bg-gray-50"></td>
+                {% else %}
+                    {% set date_str = year ~ '-' ~ '%02d'|format(month) ~ '-' ~ '%02d'|format(day) %}
+
+                    <td class="border p-3 align-top text-sm">
+                        <div class="font-semibold mb-2">{{ day }}</div>
+
+                        <div class="space-y-2">
+                        {% for shift in ["Morning", "Afternoon", "Night"] %}
+                            <div class="text-xs font-semibold text-gray-600">
+                                {{ shift }}
+                            </div>
+
+                            {% set ns = namespace(has_booking=false) %}
+
+                            {% for level in levels %}
+                                {% for slot in [1, 2] %}
+                                    {% set key = (date_str, shift, level, slot) %}
+                                    {% if key in approved_bookings %}
+                                        <div class="bg-green-100 px-2 py-1 rounded mb-1">
+                                            {{ level }} — <span class="font-semibold">{{ approved_bookings[key] }}</span>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endfor %}
+
+                            {% if not ns.has_booking %}
+                                <div class="text-gray-400 italic text-xs mb-1">
+                                    No student coach
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                        </div>
+                    </td>
+                {% endif %}
+            {% endfor %}
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+</div>
+
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1 class="text-xl font-bold mb-4">My Bookings</h1>
+
+<table class="border w-full text-sm" id="myBookingsTable">
+    <thead>
+        <tr class="bg-gray-100">
+            <th class="border px-2 py-1">Date</th>
+            <th class="border px-2 py-1">Shift</th>
+            <th class="border px-2 py-1">Level</th>
+            <th class="border px-2 py-1">Slot</th>
+            <th class="border px-2 py-1">Status</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<script src="{{ url_for('static', filename='my_bookings.js') }}"></script>
+{% endblock %}

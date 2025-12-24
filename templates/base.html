@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}POD Student Talent{% endblock %}</title>
+    <title>{% block title %}Professional Office Division Student Protal{% endblock %}</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,6 +14,28 @@
     <!-- Optional custom styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
+
+<div class="absolute top-4 right-6 z-50">
+    <select id="directoryDropdown">
+        <option value="">Navigate to…</option>
+        <option value="/">Home</option>
+        <option value="/projecthub/student_coach_schedule">
+            Student Coach On Duty Calendar
+        </option>
+        <option value="/projecthub/my_bookings">
+            My Bookings
+        </option>
+        <option value="/projecthub/admin_select_division">
+            Admin Dashboard
+        </option>
+    </select>
+</div>
+
+<option value="/projecthub/student_coach_schedule"
+    {% if request.path == '/projecthub/student_coach_schedule' %}selected{% endif %}>
+    Student Coach On Duty Calendar
+</option>
+
 <body class="bg-gray-100 font-sans">
 
     <!-- Navbar/Header -->

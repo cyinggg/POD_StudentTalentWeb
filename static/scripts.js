@@ -399,3 +399,14 @@ function handleCoachSlotClick(shift, level, slot) {
         }
     });
 }
+
+document.addEventListener("DOMContentLoaded", function () {
+    const dropdown = document.getElementById("directoryDropdown");
+    if (!dropdown) return;
+
+    dropdown.addEventListener("change", function () {
+        if (this.value) {
+            window.location.href = this.value;
+        }
+    });
+});

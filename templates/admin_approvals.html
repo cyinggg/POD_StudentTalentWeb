@@ -5,6 +5,22 @@
 {% block content %}
 <h2 class="text-xl font-bold mb-4">Student Coach Booking Applications</h2>
 
+<!-- Filters -->
+<div class="mb-4 flex gap-4">
+    <input type="text" id="filterStudent" placeholder="Filter by Student Name" class="border px-2 py-1 rounded">
+    <input type="text" id="filterDate" placeholder="Filter by Date" class="border px-2 py-1 rounded">
+    <select id="filterStatus" class="border px-2 py-1 rounded">
+        <option value="">All Status</option>
+        <option value="Pending">Pending</option>
+        <option value="Approved">Approved</option>
+        <option value="Rejected">Rejected</option>
+        <option value="Advance Excuse">Advance Excuse</option>
+        <option value="Last Minute Unavailable">Last Minute Unavailable</option>
+        <option value="Last Minute Valid Excuse">Last Minute Valid Excuse</option>
+        <option value="No Show">No Show</option>
+    </select>
+</div>
+
 <table class="min-w-full bg-white border">
     <thead>
         <tr>
@@ -13,6 +29,9 @@
             <th class="border px-4 py-2">Level</th>
             <th class="border px-4 py-2">Slot</th>
             <th class="border px-4 py-2">Student Name</th>
+            <th class="border px-4 py-2">Status</th>
+            <th class="border px-4 py-2">Admin Decision</th>
+            <th class="border px-4 py-2">Remark</th>
             <th class="border px-4 py-2">Action</th>
         </tr>
     </thead>
