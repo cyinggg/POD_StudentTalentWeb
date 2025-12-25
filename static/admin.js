@@ -1,3 +1,80 @@
+document.addEventListener("DOMContentLoaded", function () {
+
+  const toggleButtons = document.querySelectorAll(".slot-toggle-btn");
+
+  toggleButtons.forEach(button => {
+    button.addEventListener("click", function () {
+
+      const row = button.closest("tr");
+
+      const month = row.dataset.month;
+      const date = row.dataset.date;
+      const shiftType = row.dataset.shift;
+      const slotLevel = row.dataset.level;
+      const slotNumber = parseInt(row.dataset.slot);
+
+      const remarkInput = row.querySelector(".slot-remark");
+      const remark = remarkInput ? remarkInput.value : "";
+
+      const action = button.dataset.action;
+      const isOpen = action === "open";
+
+      fetch("/admin/slot-control/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          month: month,
+          date: date,
+          shift_type: shiftType,
+          slot_level: slotLevel,
+          slot_number: slotNumber,
+          is_open: isOpen,
+          remark: remark
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error("Server rejected request");
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (!data.success) {
+          alert("Failed to update slot");
+          return;
+        }
+
+        // -----------------------
+        // Update UI (NO reload)
+        // -----------------------
+        const statusCell = row.querySelector("td:nth-child(5)");
+        const actionCell = row.querySelector("td:nth-child(7)");
+
+        if (isOpen) {
+          statusCell.innerHTML = '<span style="color: green; font-weight: bold;">OPEN</span>';
+          actionCell.innerHTML = '<button type="button" class="slot-toggle-btn" data-action="close">Close</button>';
+        } else {
+          statusCell.innerHTML = '<span style="color: red; font-weight: bold;">CLOSED</span>';
+          actionCell.innerHTML = '<button type="button" class="slot-toggle-btn" data-action="open">Open</button>';
+        }
+
+        // Re-bind the new button
+        const newButton = actionCell.querySelector(".slot-toggle-btn");
+        newButton.addEventListener("click", arguments.callee);
+
+      })
+      .catch(error => {
+        console.error(error);
+        alert("Error updating slot");
+      });
+
+    });
+  });
+
+});
+
 // ---------- Load pending Student Coach booking requests ----------
 function loadPending() {
     $.get("/api/admin/pending_applications", function(data) {

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+
+  <p>DEBUG: {{ slot_data|length }} slots loaded for {{ month_name }} {{ year }}</p>
+
+  <h2>Slot Control – POD / Administration</h2>
+  <p>
+    Select a month to manage slot availability.
+    <br>
+    <strong>All slots are closed by default</strong> unless explicitly opened.
+  </p>
+
+  <!-- ===================== -->
+  <!-- Month Selector -->
+  <!-- ===================== -->
+  <form method="GET" style="margin-bottom: 20px;">
+    <label for="month"><strong>Select Month:</strong></label>
+    <input
+      type="month"
+      id="month"
+      name="month"
+      value="{{ selected_month }}"
+      required
+    >
+    <button type="submit">Load</button>
+  </form>
+
+  {% if calendar_data %}
+  <!-- ===================== -->
+  <!-- Slot Control Table -->
+  <!-- ===================== -->
+  <table class="table table-bordered table-striped">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Shift Type</th>
+        <th>Slot Level</th>
+        <th>Slot Number</th>
+        <th>Status</th>
+        <th>Remark</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for date, shifts in calendar_data.items() %}
+        {% for shift_type, levels in shifts.items() %}
+          {% for slot_level, slots in levels.items() %}
+            {% for slot in slots %}
+
+            <tr
+              data-month="{{ selected_month }}"
+              data-date="{{ date }}"
+              data-shift="{{ shift_type }}"
+              data-level="{{ slot_level }}"
+              data-slot="{{ slot.slot_number }}"
+            >
+              <td>{{ date }}</td>
+              <td>{{ shift_type }}</td>
+              <td>{{ slot_level }}</td>
+              <td>Slot {{ slot.slot_number }}</td>
+
+              <!-- Status -->
+              <td>
+                {% if slot.is_open %}
+                  <span style="color: green; font-weight: bold;">OPEN</span>
+                {% else %}
+                  <span style="color: red; font-weight: bold;">CLOSED</span>
+                {% endif %}
+              </td>
+
+              <!-- Remark -->
+              <td>
+                <input
+                  type="text"
+                  class="slot-remark"
+                  placeholder="Optional remark"
+                  value="{{ slot.remark or '' }}"
+                >
+              </td>
+
+              <!-- Action -->
+              <td>
+                {% if slot.is_open %}
+                  <button type="button" class="slot-toggle-btn" data-action="close">
+                    Close
+                  </button>
+                {% else %}
+                  <button type="button" class="slot-toggle-btn" data-action="open">
+                    Open
+                  </button>
+                {% endif %}
+              </td>
+            </tr>
+
+            {% endfor %}
+          {% endfor %}
+        {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% else %}
+    <p><em>No data available for the selected month.</em></p>
+  {% endif %}
+
+</div>
+
+<!-- ============================ -->
+<!-- Load admin.js for slot toggle -->
+<!-- ============================ -->
+<script src="{{ url_for('static', filename='admin.js') }}"></script>
+
+{% endblock %}

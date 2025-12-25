@@ -5,6 +5,7 @@ from pytz import timezone
 import calendar
 import os
 import pandas as pd
+import calendar as cal_module
 
 app = Flask(__name__)
 
@@ -13,6 +14,7 @@ app = Flask(__name__)
 # ==========================
 app.secret_key = "change_this_to_a_random_secret_in_production"
 app.permanent_session_lifetime = timedelta(minutes=30)
+MAX_SHIFTS = 100
 
 # ==========================
 # FILE PATHS
@@ -22,6 +24,7 @@ STUDENTCOACH_FILE = os.path.join(DATA_DIR, "StudentCoach.xlsx")
 APPLICATIONS_FILE = os.path.join(DATA_DIR, "applications.xlsx")
 NOTIFICATIONS_FILE = os.path.join(DATA_DIR, "notifications.xlsx")
 COMMITTEE_FILE = os.path.join(DATA_DIR, "committee_calendar.xlsx")
+SLOT_CONTROL_FILE = os.path.join(DATA_DIR, "slot_control.xlsx")
 
 # ==========================
 # CONTEXT PROCESSORS
@@ -78,6 +81,58 @@ def normalize_contact(v):
 # Normalize division
 def normalize_contact(v):
     return str(v).strip()
+
+def generate_month_slots(year: int, month: int):
+    """Ensure slot_control.xlsx has rows for all dates in the month."""
+    try:
+        df = pd.read_excel(SLOT_CONTROL_FILE)
+    except FileNotFoundError:
+        df = pd.DataFrame(columns=[
+            "Month", "Date", "ShiftType", "SlotLevel", "SlotNumber",
+            "IsOpen", "UpdatedBy", "UpdatedAt", "Remark"
+        ])
+
+    # Generate list of dates in month
+    month_start = datetime(year, month, 1)
+    _, last_day = cal_module.monthrange(year, month)
+    dates = [month_start + timedelta(days=i) for i in range(last_day)]
+
+    shift_types = ["Morning", "Afternoon", "Night"]
+    slot_levels = ["L3", "L4", "L6"]
+    slot_numbers = [1, 2]  # You mentioned each level has multiple slots
+
+    new_rows = []
+
+    for date_obj in dates:
+        date_str = date_obj.strftime("%Y-%m-%d")
+        month_str = date_obj.strftime("%Y-%m")
+        for shift in shift_types:
+            for level in slot_levels:
+                for slot in slot_numbers:
+                    # Check if row already exists
+                    exists = (
+                        (df['Date'] == date_str) &
+                        (df['ShiftType'] == shift) &
+                        (df['SlotLevel'] == level) &
+                        (df['SlotNumber'] == slot)
+                    ).any()
+                    if not exists:
+                        new_rows.append({
+                            "Month": month_str,
+                            "Date": date_str,
+                            "ShiftType": shift,
+                            "SlotLevel": level,
+                            "SlotNumber": slot,
+                            "IsOpen": "Closed",
+                            "UpdatedBy": "",
+                            "UpdatedAt": "",
+                            "Remark": ""
+                        })
+
+    if new_rows:
+        df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
+        df.to_excel(SLOT_CONTROL_FILE, index=False)
+        print(f"Adding {len(new_rows)} new slot rows for {year}-{month:02d}")
 
 def ensure_applications_file():
     # Ensure applications.xlsx exists
@@ -217,6 +272,65 @@ def load_committee_entries(division):
         })
     return entries
 
+def ensure_slot_control_file():
+    if os.path.exists(SLOT_CONTROL_FILE):
+        return
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append([
+        "Month", "Date", "ShiftType", "SlotLevel", "SlotNumber",
+        "IsOpen", "UpdatedBy", "UpdatedAt", "Remark"
+    ])
+    wb.save(SLOT_CONTROL_FILE)
+
+def get_slot_status(month, date, shift_type, slot_level, slot_number):
+
+    # Default state
+    is_open = False
+    remark = ""
+
+    # If slot control file does not exist, everything is CLOSED
+    if not os.path.exists(SLOT_CONTROL_FILE):
+        return is_open, remark
+
+    try:
+        df = pd.read_excel(SLOT_CONTROL_FILE)
+    except Exception:
+        # Fail-safe: if file cannot be read, keep slots CLOSED
+        return is_open, remark
+
+    # Required columns safety check
+    required_columns = {
+        "Month", "Date", "ShiftType",
+        "SlotLevel", "SlotNumber", "IsOpen", "Remark"
+    }
+    if not required_columns.issubset(df.columns):
+        return is_open, remark
+
+    # Normalize values for safe comparison
+    df["Month"] = df["Month"].astype(str)
+    df["Date"] = df["Date"].astype(str)
+    df["ShiftType"] = df["ShiftType"].astype(str)
+    df["SlotLevel"] = df["SlotLevel"].astype(str)
+    df["SlotNumber"] = df["SlotNumber"].astype(int)
+
+    # Filter for the exact slot identity
+    match = df[
+        (df["Month"] == str(month)) &
+        (df["Date"] == str(date)) &
+        (df["ShiftType"] == str(shift_type)) &
+        (df["SlotLevel"] == str(slot_level)) &
+        (df["SlotNumber"] == int(slot_number))
+    ]
+
+    # If a matching row exists, take the latest one
+    if not match.empty:
+        row = match.iloc[-1]
+        is_open = bool(row["IsOpen"])
+        remark = "" if pd.isna(row.get("Remark")) else str(row.get("Remark"))
+
+    return is_open, remark
+
 # ==========================
 # ROUTES
 # ==========================
@@ -310,15 +424,17 @@ def login():
 
 @app.route("/calendar")
 def calendar_view():
-    # Not logged in go back to division selection
+    # Not logged in → go back to division selection
     if "student_id" not in session:
         return redirect(url_for("select_division"))
 
-    # Admin is NOT allowed to see calendar force admin home
+    # Admin is NOT allowed to see calendar → force admin home
     if session.get("role") == "POD Staff and Administration":
         return redirect(url_for("admin_home"))
 
-    # Only now prepare calendar data
+    # -------------------------------
+    # Prepare calendar data
+    # -------------------------------
     sg = datetime.now(timezone("Asia/Singapore"))
     year = sg.year
     month = sg.month
@@ -330,6 +446,31 @@ def calendar_view():
     is_committee = role == "Student Talent Committee and Ambassador"
     is_coach = role == "Student Coach"
 
+    # -------------------------------
+    # Prepare slot data for the month
+    # -------------------------------
+    # Example structure: list of dicts, one per slot
+    calendar_data = []
+    shift_types = ["Morning", "Afternoon", "Night"]
+    slot_levels = ["Level 3", "Level 4", "Level 6"]
+    slot_numbers = {"Level 3": 2, "Level 4": 2, "Level 6": 2}  # adjust as per system
+
+    for day in range(1, calendar.monthrange(year, month)[1]+1):
+        date_str = f"{year}-{month:02d}-{day:02d}"
+        for shift in shift_types:
+            for level in slot_levels:
+                for slot_num in range(1, slot_numbers[level]+1):
+                    calendar_data.append({
+                        "month": f"{year}-{month:02d}",
+                        "date": date_str,
+                        "shift_type": shift,
+                        "slot_level": level,
+                        "slot_number": slot_num
+                    })
+
+    # -------------------------------
+    # Render template
+    # -------------------------------
     return render_template(
         "calendar.html",
         year=year,
@@ -340,7 +481,9 @@ def calendar_view():
         is_pod=is_pod,
         is_committee=is_committee,
         is_coach=is_coach,
-        student_name=session.get("student_name")
+        student_name=session.get("student_name"),
+        calendar_data=calendar_data,
+        get_slot_status=get_slot_status
     )
 
 @app.route("/logout", methods=["GET", "POST"])
@@ -481,6 +624,13 @@ def api_submit():
     slot_number = data.get("slot_number")
     if not all([date, shift_type, slot_level, slot_number]):
         return jsonify({"status": "error", "message": "Missing data"}), 400
+    
+    if not is_slot_open(date, shift_type, slot_level, slot_number):
+        return jsonify({
+            "status": "error",
+            "message": "This slot is currently closed by admin."
+        }), 400
+
     ensure_applications_file()
     wb = openpyxl.load_workbook(APPLICATIONS_FILE)
     ws = wb.active
@@ -488,8 +638,8 @@ def api_submit():
     for row in ws.iter_rows(min_row=2, values_only=True):
         if row[1] == "Student Coach" and row[2] == session.get("student_id") and row[4][:7] == date[:7] and row[11] in ["Pending", "Approved"]:
             current_pref = max(current_pref, int(row[8])+1)
-    if current_pref > 3:
-        return jsonify({"status": "error", "message": "You can only submit up to 3 shifts per month."}), 400
+    if current_pref > MAX_SHIFTS:
+        return jsonify({"status": "error", "message": "You can only submit up to TBC shifts per month."}), 400
     ts = datetime.now(timezone("Asia/Singapore")).strftime("%Y-%m-%d %H:%M:%S")
     record = [
         ts, "Student Coach", session.get("student_id"), session.get("student_name"),
@@ -511,6 +661,150 @@ def admin_home():
     if session.get("role") != "POD Staff and Administration":
         return redirect(url_for("select_division"))
     return render_template("admin_home.html")
+
+@app.route("/projecthub/admin_slot_control", methods=["GET", "POST"])
+def admin_slot_control():
+    if "role" not in session or session["role"] != "POD Staff and Administration":
+        return redirect(url_for("login"))
+
+    sg = datetime.now(timezone("Asia/Singapore"))
+    year = sg.year
+    month = sg.month
+
+    # ===== Handle selected month =====
+    month_selected = request.args.get("month") or request.form.get("month")
+    if month_selected:
+        try:
+            year, month = map(int, month_selected.split("-"))
+        except Exception:
+            pass
+    selected_month = f"{year}-{month:02d}"
+
+    # ===== Generate all slots for the month (Option B) =====
+    generate_month_slots(year, month)
+
+    # ===== Read slot_control.xlsx =====
+    df = pd.read_excel(SLOT_CONTROL_FILE, dtype={"Month": str})
+    df["Month"] = df["Month"].str.strip()
+    df_month = df[df["Month"] == selected_month]
+
+    # ===== Build calendar_data for template =====
+    calendar_data = {}  # {date: {shift_type: {slot_level: [slot1, slot2]}}}
+    for _, row in df_month.iterrows():
+        date = row["Date"].strftime("%Y-%m-%d") if isinstance(row["Date"], datetime) else str(row["Date"])
+        shift_type = row["ShiftType"]
+        slot_level = row["SlotLevel"]
+        slot_number = row["SlotNumber"]
+        is_open = row["IsOpen"] == "Open"
+        remark = row.get("Remark", "")
+
+        calendar_data.setdefault(date, {})
+        calendar_data[date].setdefault(shift_type, {})
+        calendar_data[date][shift_type].setdefault(slot_level, [])
+        calendar_data[date][shift_type][slot_level].append(
+            {
+                "slot_number": slot_number,
+                "is_open": is_open,
+                "remark": remark
+            }
+        )
+
+    return render_template(
+        "admin_slot_control_calendar.html",
+        calendar_data=calendar_data,
+        selected_month=selected_month,
+        month_name=calendar.month_name[month],
+        year=year,
+        slot_data=df_month.to_dict(orient="records")
+    )
+
+@app.route("/admin/slot-control/update", methods=["POST"])
+def admin_update_slot_control():
+    # -----------------------------
+    # Role protection (DO NOT CHANGE LOGIC STYLE)
+    # -----------------------------
+    if not session.get("is_admin") and not session.get("is_pod_staff"):
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+
+    # -----------------------------
+    # Read incoming data
+    # -----------------------------
+    data = request.json
+
+    month = data.get("month")
+    date = data.get("date")
+    shift_type = data.get("shift_type")
+    slot_level = data.get("slot_level")
+    slot_number = data.get("slot_number")
+    is_open = data.get("is_open")
+    remark = data.get("remark", "")
+
+    # Basic safety (no business logic)
+    if not all([month, date, shift_type, slot_level, slot_number]):
+        return jsonify({"success": False, "message": "Missing required fields"}), 400
+
+    # -----------------------------
+    # Load or create slot_control.xlsx
+    # -----------------------------
+    if os.path.exists(SLOT_CONTROL_FILE):
+        df = pd.read_excel(SLOT_CONTROL_FILE)
+    else:
+        df = pd.DataFrame(columns=[
+            "Month", "Date", "ShiftType", "SlotLevel",
+            "SlotNumber", "IsOpen",
+            "UpdatedBy", "UpdatedAt", "Remark"
+        ])
+
+    # Normalize types
+    df["Month"] = df.get("Month", "").astype(str)
+    df["Date"] = df.get("Date", "").astype(str)
+    df["ShiftType"] = df.get("ShiftType", "").astype(str)
+    df["SlotLevel"] = df.get("SlotLevel", "").astype(str)
+    if "SlotNumber" in df.columns:
+        df["SlotNumber"] = df["SlotNumber"].fillna(0).astype(int)
+
+    # -----------------------------
+    # Identify the exact slot row
+    # -----------------------------
+    mask = (
+        (df["Month"] == str(month)) &
+        (df["Date"] == str(date)) &
+        (df["ShiftType"] == str(shift_type)) &
+        (df["SlotLevel"] == str(slot_level)) &
+        (df["SlotNumber"] == int(slot_number))
+    )
+
+    updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    updated_by = session.get("username", "Unknown")
+
+    # -----------------------------
+    # Update or Append
+    # -----------------------------
+    if mask.any():
+        df.loc[mask, "IsOpen"] = bool(is_open)
+        df.loc[mask, "Remark"] = remark
+        df.loc[mask, "UpdatedBy"] = updated_by
+        df.loc[mask, "UpdatedAt"] = updated_at
+    else:
+        new_row = {
+            "Month": month,
+            "Date": date,
+            "ShiftType": shift_type,
+            "SlotLevel": slot_level,
+            "SlotNumber": int(slot_number),
+            "IsOpen": bool(is_open),
+            "UpdatedBy": updated_by,
+            "UpdatedAt": updated_at,
+            "Remark": remark
+        }
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+
+    # -----------------------------
+    # Save back to Excel
+    # -----------------------------
+    df.to_excel(SLOT_CONTROL_FILE, index=False)
+
+    return jsonify({"success": True})
 
 @app.route("/admin_approvals")
 def admin_approvals():
@@ -659,9 +953,18 @@ def admin_reallocate():
     return jsonify({"status":"not_found"})
 
 # ==========================
+# Flask app for Replit
+# ==========================
+# Health Check for UptimeRobot
+@app.route("/health")
+def health():
+    return "UptimeRobot ok."
+
+# ==========================
 # RUN
 # ==========================
 if __name__ == "__main__":
     ensure_applications_file()
     ensure_committee_file()
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
