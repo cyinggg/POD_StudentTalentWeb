@@ -1,76 +1,76 @@
 document.addEventListener("DOMContentLoaded", function () {
 
-  const toggleButtons = document.querySelectorAll(".slot-toggle-btn");
+  // Use delegated event binding for dynamic buttons
+  document.querySelector(".container").addEventListener("click", function (e) {
+    if (!e.target.classList.contains("slot-toggle-btn")) return;
 
-  toggleButtons.forEach(button => {
-    button.addEventListener("click", function () {
+    const button = e.target;
+    const row = button.closest("tr");
 
-      const row = button.closest("tr");
+    // Read all data attributes
+    const month = row.dataset.month || document.getElementById("month").value; // fallback to month picker
+    const date = row.dataset.date;
+    const shiftType = row.dataset.shift;
+    const slotLevel = row.dataset.level;
+    const slotNumber = parseInt(row.dataset.slot);
 
-      const month = row.dataset.month;
-      const date = row.dataset.date;
-      const shiftType = row.dataset.shift;
-      const slotLevel = row.dataset.level;
-      const slotNumber = parseInt(row.dataset.slot);
+    const remarkInput = row.querySelector(".slot-remark");
+    const remark = remarkInput ? remarkInput.value : "";
 
-      const remarkInput = row.querySelector(".slot-remark");
-      const remark = remarkInput ? remarkInput.value : "";
+    const action = button.dataset.action;
+    const isOpen = action === "open";
 
-      const action = button.dataset.action;
-      const isOpen = action === "open";
+    if (!month || !date || !shiftType || !slotLevel || !slotNumber) {
+      console.error("Missing required fields:", { month, date, shiftType, slotLevel, slotNumber });
+      alert("Cannot read all slot info, update failed.");
+      return;
+    }
 
-      fetch("/admin/slot-control/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          month: month,
-          date: date,
-          shift_type: shiftType,
-          slot_level: slotLevel,
-          slot_number: slotNumber,
-          is_open: isOpen,
-          remark: remark
-        })
+    // ---------- Send update request ----------
+    fetch("/admin/slot-control/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        month: month,
+        date: date,
+        shift_type: shiftType,
+        slot_level: slotLevel,
+        slot_number: slotNumber,
+        is_open: isOpen,
+        remark: remark
       })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error("Server rejected request");
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (!data.success) {
-          alert("Failed to update slot");
-          return;
-        }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (!data.success) {
+        alert("Failed to update slot: " + (data.message || ""));
+        return;
+      }
 
-        // -----------------------
-        // Update UI (NO reload)
-        // -----------------------
-        const statusCell = row.querySelector("td:nth-child(5)");
-        const actionCell = row.querySelector("td:nth-child(7)");
+      // ---------- Update UI ----------
+      const statusCell = row.querySelector("td:nth-child(5)");
+      const actionCell = row.querySelector("td:nth-child(7)");
 
-        if (isOpen) {
-          statusCell.innerHTML = '<span style="color: green; font-weight: bold;">OPEN</span>';
-          actionCell.innerHTML = '<button type="button" class="slot-toggle-btn" data-action="close">Close</button>';
-        } else {
-          statusCell.innerHTML = '<span style="color: red; font-weight: bold;">CLOSED</span>';
-          actionCell.innerHTML = '<button type="button" class="slot-toggle-btn" data-action="open">Open</button>';
-        }
+      if (isOpen) {
+        statusCell.innerHTML = '<span style="color: green; font-weight: bold;">OPEN</span>';
+        actionCell.innerHTML = '<button type="button" class="slot-toggle-btn" data-action="close">Close</button>';
+      } else {
+        statusCell.innerHTML = '<span style="color: red; font-weight: bold;">CLOSED</span>';
+        actionCell.innerHTML = '<button type="button" class="slot-toggle-btn" data-action="open">Open</button>';
+      }
 
-        // Re-bind the new button
-        const newButton = actionCell.querySelector(".slot-toggle-btn");
-        newButton.addEventListener("click", arguments.callee);
-
-      })
-      .catch(error => {
-        console.error(error);
-        alert("Error updating slot");
-      });
-
+      // Optional: show toast or alert for remark saved
+      if (remark) {
+        alert(`Slot updated successfully.\nRemark saved: "${remark}"`);
+      } else {
+        alert("Slot updated successfully.");
+      }
+    })
+    .catch(error => {
+      console.error(error);
+      alert("Error updating slot");
     });
+
   });
 
 });

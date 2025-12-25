@@ -721,16 +721,15 @@ def admin_slot_control():
 @app.route("/admin/slot-control/update", methods=["POST"])
 def admin_update_slot_control():
     # -----------------------------
-    # Role protection (DO NOT CHANGE LOGIC STYLE)
+    # Role protection
     # -----------------------------
-    if not session.get("is_admin") and not session.get("is_pod_staff"):
+    if session.get("role") != "POD Staff and Administration":
         return jsonify({"success": False, "message": "Unauthorized"}), 403
 
     # -----------------------------
     # Read incoming data
     # -----------------------------
     data = request.json
-
     month = data.get("month")
     date = data.get("date")
     shift_type = data.get("shift_type")
@@ -739,7 +738,7 @@ def admin_update_slot_control():
     is_open = data.get("is_open")
     remark = data.get("remark", "")
 
-    # Basic safety (no business logic)
+    # Safety check
     if not all([month, date, shift_type, slot_level, slot_number]):
         return jsonify({"success": False, "message": "Missing required fields"}), 400
 
@@ -751,15 +750,24 @@ def admin_update_slot_control():
     else:
         df = pd.DataFrame(columns=[
             "Month", "Date", "ShiftType", "SlotLevel",
-            "SlotNumber", "IsOpen",
-            "UpdatedBy", "UpdatedAt", "Remark"
+            "SlotNumber", "IsOpen", "UpdatedBy", "UpdatedAt", "Remark"
         ])
 
-    # Normalize types
-    df["Month"] = df.get("Month", "").astype(str)
-    df["Date"] = df.get("Date", "").astype(str)
-    df["ShiftType"] = df.get("ShiftType", "").astype(str)
-    df["SlotLevel"] = df.get("SlotLevel", "").astype(str)
+    # -----------------------------
+    # Ensure Remark column exists and is string type
+    # -----------------------------
+    if "Remark" not in df.columns:
+        df["Remark"] = ""
+    else:
+        df["Remark"] = df["Remark"].fillna("").astype(str)
+
+    # Ensure IsOpen column exists
+    if "IsOpen" not in df.columns:
+        df["IsOpen"] = "Closed"
+    else:
+        df["IsOpen"] = df["IsOpen"].apply(lambda x: "Open" if str(x) in ["True","Open"] else "Closed")
+
+    # Normalize SlotNumber column
     if "SlotNumber" in df.columns:
         df["SlotNumber"] = df["SlotNumber"].fillna(0).astype(int)
 
@@ -778,13 +786,14 @@ def admin_update_slot_control():
     updated_by = session.get("username", "Unknown")
 
     # -----------------------------
-    # Update or Append
+    # Update existing row or append new
     # -----------------------------
     if mask.any():
-        df.loc[mask, "IsOpen"] = bool(is_open)
-        df.loc[mask, "Remark"] = remark
+        df.loc[mask, "IsOpen"] = "Open" if is_open else "Closed"
+        df.loc[mask, "Remark"] = str(remark)
         df.loc[mask, "UpdatedBy"] = updated_by
         df.loc[mask, "UpdatedAt"] = updated_at
+        action_msg = "updated"
     else:
         new_row = {
             "Month": month,
@@ -792,19 +801,26 @@ def admin_update_slot_control():
             "ShiftType": shift_type,
             "SlotLevel": slot_level,
             "SlotNumber": int(slot_number),
-            "IsOpen": bool(is_open),
+            "IsOpen": "Open" if is_open else "Closed",
             "UpdatedBy": updated_by,
             "UpdatedAt": updated_at,
-            "Remark": remark
+            "Remark": str(remark)
         }
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        action_msg = "added"
 
     # -----------------------------
     # Save back to Excel
     # -----------------------------
     df.to_excel(SLOT_CONTROL_FILE, index=False)
 
-    return jsonify({"success": True})
+    # -----------------------------
+    # Return JSON with notification message
+    # -----------------------------
+    return jsonify({
+        "success": True,
+        "message": f"Slot {slot_number} ({shift_type} - {slot_level}) {action_msg} successfully."
+    })
 
 @app.route("/admin_approvals")
 def admin_approvals():
