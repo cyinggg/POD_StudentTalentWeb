@@ -75,46 +75,36 @@ def validate_contact(student_id, contact):
     return input_contact == stored_contact
 
 # Normalize contact number
-def normalize_contact(v):
-    return "".join(filter(str.isdigit, str(v)))
-
-# Normalize division
+# def normalize_contact(v):
+#     return "".join(filter(str.isdigit, str(v)))
 def normalize_contact(v):
     return str(v).strip()
 
 def generate_month_slots(year: int, month: int):
     """Ensure slot_control.xlsx has rows for all dates in the month."""
-    try:
-        df = pd.read_excel(SLOT_CONTROL_FILE)
-    except FileNotFoundError:
-        df = pd.DataFrame(columns=[
-            "Month", "Date", "ShiftType", "SlotLevel", "SlotNumber",
-            "IsOpen", "UpdatedBy", "UpdatedAt", "Remark"
-        ])
+    ensure_slot_control_file()
+    df = pd.read_excel(SLOT_CONTROL_FILE, dtype=str)
 
-    # Generate list of dates in month
-    month_start = datetime(year, month, 1)
+    # Generate dates
     _, last_day = cal_module.monthrange(year, month)
-    dates = [month_start + timedelta(days=i) for i in range(last_day)]
+    dates = [datetime(year, month, d) for d in range(1, last_day+1)]
 
     shift_types = ["Morning", "Afternoon", "Night"]
     slot_levels = ["L3", "L4", "L6"]
-    slot_numbers = [1, 2]  # You mentioned each level has multiple slots
+    slot_numbers = [1, 2]
 
     new_rows = []
-
     for date_obj in dates:
-        date_str = date_obj.strftime("%Y-%m-%d")
         month_str = date_obj.strftime("%Y-%m")
+        date_str = date_obj.strftime("%Y-%m-%d")
         for shift in shift_types:
             for level in slot_levels:
                 for slot in slot_numbers:
-                    # Check if row already exists
                     exists = (
                         (df['Date'] == date_str) &
                         (df['ShiftType'] == shift) &
                         (df['SlotLevel'] == level) &
-                        (df['SlotNumber'] == slot)
+                        (df['SlotNumber'] == str(slot))
                     ).any()
                     if not exists:
                         new_rows.append({
@@ -122,17 +112,15 @@ def generate_month_slots(year: int, month: int):
                             "Date": date_str,
                             "ShiftType": shift,
                             "SlotLevel": level,
-                            "SlotNumber": slot,
+                            "SlotNumber": str(slot),
                             "IsOpen": "Closed",
                             "UpdatedBy": "",
                             "UpdatedAt": "",
                             "Remark": ""
                         })
-
     if new_rows:
         df = pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
         df.to_excel(SLOT_CONTROL_FILE, index=False)
-        print(f"Adding {len(new_rows)} new slot rows for {year}-{month:02d}")
 
 def ensure_applications_file():
     # Ensure applications.xlsx exists
@@ -283,53 +271,116 @@ def ensure_slot_control_file():
     ])
     wb.save(SLOT_CONTROL_FILE)
 
+def load_slot_control():
+    data = []
+    try:
+        wb = openpyxl.load_workbook(SLOT_CONTROL_FILE)
+        ws = wb.active
+        # Columns: Month | Date | ShiftType | SlotLevel | SlotNumber | IsOpen | UpdatedBy | UpdatedAt | Remark
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            _, date, shift_type, slot_level, slot_number, is_open, _, _, remark = row
+
+            # Ensure date is a string like YYYY-MM-DD
+            if isinstance(date, datetime):
+                date_str = date.strftime("%Y-%m-%d")
+            else:
+                date_str = str(date)
+
+            # Convert is_open reliably to boolean
+            if isinstance(is_open, bool):
+                is_open_bool = is_open
+            elif isinstance(is_open, (int, float)):
+                is_open_bool = bool(is_open)
+            elif isinstance(is_open, str):
+                is_open_bool = is_open.strip().lower() in ["true", "1", "yes", "open"]
+            else:
+                is_open_bool = False  # default to closed
+
+            data.append({
+                "date": date_str,
+                "shift_type": shift_type,
+                "slot_level": slot_level,
+                "slot_number": slot_number,
+                "is_open": is_open_bool,
+                "remarks": remark or ""
+            })
+    except Exception as e:
+        print("Error loading slot_control.xlsx:", e)
+    return data
+
 def get_slot_status(month, date, shift_type, slot_level, slot_number):
-
-    # Default state
-    is_open = False
-    remark = ""
-
-    # If slot control file does not exist, everything is CLOSED
+    """Return tuple (is_open: bool, remark: str) for calendar"""
+    is_open, remark = False, ""
     if not os.path.exists(SLOT_CONTROL_FILE):
         return is_open, remark
-
     try:
-        df = pd.read_excel(SLOT_CONTROL_FILE)
-    except Exception:
-        # Fail-safe: if file cannot be read, keep slots CLOSED
+        df = pd.read_excel(SLOT_CONTROL_FILE, dtype=str)
+    except:
         return is_open, remark
 
-    # Required columns safety check
-    required_columns = {
-        "Month", "Date", "ShiftType",
-        "SlotLevel", "SlotNumber", "IsOpen", "Remark"
-    }
-    if not required_columns.issubset(df.columns):
-        return is_open, remark
+    month = str(month).strip()
+    date = str(date).strip()
+    shift_type = str(shift_type).strip()
+    slot_level = str(slot_level).strip()
+    slot_number = str(slot_number).strip()
 
-    # Normalize values for safe comparison
-    df["Month"] = df["Month"].astype(str)
-    df["Date"] = df["Date"].astype(str)
-    df["ShiftType"] = df["ShiftType"].astype(str)
-    df["SlotLevel"] = df["SlotLevel"].astype(str)
-    df["SlotNumber"] = df["SlotNumber"].astype(int)
+    df["Month"] = df["Month"].astype(str).str.strip()
+    df["Date"] = df["Date"].astype(str).str.strip()
+    df["ShiftType"] = df["ShiftType"].astype(str).str.strip()
+    df["SlotLevel"] = df["SlotLevel"].astype(str).str.strip()
+    df["SlotNumber"] = df["SlotNumber"].astype(str).str.strip()
 
-    # Filter for the exact slot identity
     match = df[
-        (df["Month"] == str(month)) &
-        (df["Date"] == str(date)) &
-        (df["ShiftType"] == str(shift_type)) &
-        (df["SlotLevel"] == str(slot_level)) &
-        (df["SlotNumber"] == int(slot_number))
+        (df["Month"] == month) &
+        (df["Date"] == date) &
+        (df["ShiftType"] == shift_type) &
+        (df["SlotLevel"] == slot_level) &
+        (df["SlotNumber"] == slot_number)
     ]
 
-    # If a matching row exists, take the latest one
-    if not match.empty:
-        row = match.iloc[-1]
-        is_open = bool(row["IsOpen"])
-        remark = "" if pd.isna(row.get("Remark")) else str(row.get("Remark"))
+    if match.empty:
+        return is_open, remark
 
+    row = match.iloc[-1]
+    raw_open = str(row.get("IsOpen", "")).strip().lower()
+    is_open = raw_open in ["1", "true", "yes", "open"]
+    remark = str(row.get("Remark", "")).strip() if not pd.isna(row.get("Remark", "")) else ""
     return is_open, remark
+
+def is_slot_open(date, shift_type, slot_level, slot_number):
+    """Return True if the slot is open according to slot_control.xlsx"""
+    if not os.path.exists(SLOT_CONTROL_FILE):
+        return False
+    try:
+        df = pd.read_excel(SLOT_CONTROL_FILE, dtype=str)
+    except:
+        return False
+
+    month = str(date)[:7]
+    date = str(date).strip()
+    shift_type = str(shift_type).strip()
+    slot_level = str(slot_level).strip()
+    slot_number = str(slot_number).strip()
+
+    df["Month"] = df["Month"].astype(str).str.strip()
+    df["Date"] = df["Date"].astype(str).str.strip()
+    df["ShiftType"] = df["ShiftType"].astype(str).str.strip()
+    df["SlotLevel"] = df["SlotLevel"].astype(str).str.strip()
+    df["SlotNumber"] = df["SlotNumber"].astype(str).str.strip()
+
+    match = df[
+        (df["Month"] == month) &
+        (df["Date"] == date) &
+        (df["ShiftType"] == shift_type) &
+        (df["SlotLevel"] == slot_level) &
+        (df["SlotNumber"] == slot_number)
+    ]
+
+    if match.empty:
+        return False
+
+    raw = str(match.iloc[-1]["IsOpen"]).strip().lower()
+    return raw in ["1", "true", "yes", "open"]
 
 # ==========================
 # ROUTES
@@ -438,6 +489,14 @@ def calendar_view():
     sg = datetime.now(timezone("Asia/Singapore"))
     year = sg.year
     month = sg.month
+    
+    # Ensure slot control rows exist for student view
+    generate_month_slots(year, month)
+    # ALSO ensure next month if visible
+    next_month = month + 1 if month < 12 else 1
+    next_year = year if month < 12 else year + 1
+    generate_month_slots(next_year, next_month)
+
     month_name = calendar.month_name[month]
     cal = calendar.Calendar(firstweekday=0).monthdayscalendar(year, month)
 
@@ -452,8 +511,8 @@ def calendar_view():
     # Example structure: list of dicts, one per slot
     calendar_data = []
     shift_types = ["Morning", "Afternoon", "Night"]
-    slot_levels = ["Level 3", "Level 4", "Level 6"]
-    slot_numbers = {"Level 3": 2, "Level 4": 2, "Level 6": 2}  # adjust as per system
+    slot_levels = ["L3", "L4", "L6"]
+    slot_numbers = {"L3": 2, "L4": 2, "L6": 2}
 
     for day in range(1, calendar.monthrange(year, month)[1]+1):
         date_str = f"{year}-{month:02d}-{day:02d}"
@@ -662,6 +721,10 @@ def admin_home():
         return redirect(url_for("select_division"))
     return render_template("admin_home.html")
 
+@app.route("/api/slot_control")
+def api_slot_control():
+    return jsonify(load_slot_control())
+
 @app.route("/projecthub/admin_slot_control", methods=["GET", "POST"])
 def admin_slot_control():
     if "role" not in session or session["role"] != "POD Staff and Administration":
@@ -695,7 +758,8 @@ def admin_slot_control():
         shift_type = row["ShiftType"]
         slot_level = row["SlotLevel"]
         slot_number = row["SlotNumber"]
-        is_open = row["IsOpen"] == "Open"
+        raw = str(row["IsOpen"]).strip().lower()
+        is_open = raw in ["open", "true", "1", "yes"]
         remark = row.get("Remark", "")
 
         calendar_data.setdefault(date, {})
@@ -783,7 +847,7 @@ def admin_update_slot_control():
     )
 
     updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    updated_by = session.get("username", "Unknown")
+    updated_by = session.get("student_name", "POD Staff and Administration")
 
     # -----------------------------
     # Update existing row or append new

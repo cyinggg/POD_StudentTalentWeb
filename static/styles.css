@@ -257,3 +257,8 @@ form input, form select {
         padding: 2px 4px;
     }
 }
+
+#shiftContainer {
+    max-height: 60vh;
+    overflow-y: auto;
+}

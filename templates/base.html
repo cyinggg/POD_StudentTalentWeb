@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Professional Office Division Student Protal{% endblock %}</title>
+    <title>{% block title %}Professional Office Division Student Portal{% endblock %}</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -15,90 +15,99 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 
+<body class="bg-gray-100 font-sans">
+
+<!-- Navigation Dropdown -->
 <div class="absolute top-4 right-6 z-50">
-    <select id="directoryDropdown">
+    <select id="directoryDropdown" class="border rounded p-1 bg-white">
         <option value="">Navigate to…</option>
         <option value="/">Home</option>
-        <option value="/projecthub/student_coach_schedule">
+        <option value="/projecthub/student_coach_schedule" {% if request.path == '/projecthub/student_coach_schedule' %}selected{% endif %}>
             Student Coach On Duty Calendar
         </option>
-        <option value="/projecthub/my_bookings">
+        <option value="/projecthub/my_bookings" {% if request.path == '/projecthub/my_bookings' %}selected{% endif %}>
             My Bookings
         </option>
-        <option value="/projecthub/admin_select_division">
+        <option value="/projecthub/admin_select_division" {% if request.path == '/projecthub/admin_select_division' %}selected{% endif %}>
             Admin Dashboard
         </option>
     </select>
 </div>
 
-<option value="/projecthub/student_coach_schedule"
-    {% if request.path == '/projecthub/student_coach_schedule' %}selected{% endif %}>
-    Student Coach On Duty Calendar
-</option>
+<!-- Navbar/Header -->
+<header class="bg-gray-100 text-gray-900 px-6 py-4 flex justify-between items-center border-b">
+    <div class="flex flex-col">
+        <div class="text-xl font-bold">POD Student Talent System</div>
+        {% if session.get("student_id") %}
+            <div class="text-sm mt-1">
+                Welcome, <span class="font-semibold">{{ session.get('student_name') }}</span>
+                {% if session.get("role") %}— <span class="italic">{{ session.get("role") }}</span>{% endif %}
+            </div>
+        {% endif %}
+    </div>
 
-<body class="bg-gray-100 font-sans">
-
-    <!-- Navbar/Header -->
-    <header class="bg-gray-100 text-gray-900 px-6 py-4 flex justify-between items-center border-b">
-
-        <!-- Left: System Title + Welcome -->
-        <div class="flex flex-col">
-            <div class="text-xl font-bold">POD Student Talent System</div>
-            {% if session.get("student_id") %}
-                <div class="text-sm mt-1">
-                    Welcome, <span class="font-semibold">{{ session.get('student_name') }}</span>
-                    {% if session.get("role") %}
-                        — <span class="italic">{{ session.get("role") }}</span>
-                    {% endif %}
-                </div>
-            {% endif %}
-        </div>
-
-        <!-- Right: Navigation -->
-        <nav class="flex gap-4 text-sm font-semibold items-center">
-
-            {% if session.get("student_id") and session.get("role") != "POD Staff and Administration" %}
+    <nav class="flex gap-4 text-sm font-semibold items-center">
+        {% if session.get("student_id") and session.get("role") != "POD Staff and Administration" %}
             <a href="/calendar" class="hover:underline">Calendar</a>
-            {% endif %}
+        {% endif %}
 
-            {% if session.get("role") == "POD Staff and Administration" %}
+        {% if session.get("role") == "POD Staff and Administration" %}
             <a href="/admin_home" class="hover:underline">Admin Dashboard</a>
-            {% endif %}
+        {% endif %}
 
-            <!-- {% if session.get("role") == "POD Staff and Administration" %}
-                <a href="/admin_approvals"
-                class="bg-red-500 px-3 py-1 rounded hover:bg-red-600">
-                    Admin Approvals
-                </a>
-            {% endif %} -->
-
-            {% if session.get("student_id") %}
+        {% if session.get("student_id") %}
             <button id="logoutBtn"
                     type="button"
                     class="hover:underline bg-transparent border-none cursor-pointer text-gray-900 font-semibold">
                 Logout
             </button>
-            {% endif %}
+        {% endif %}
+    </nav>
+</header>
 
-        </nav>
+<main class="container mx-auto my-6 px-4">
+    {% block content %}{% endblock %}
+</main>
 
-    </header>
+<!-- POD Staff / Admin Slot Control Modal -->
+<div id="slotControlModal" class="hidden fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+    <div class="bg-white rounded-xl p-6 w-full max-w-3xl shadow-lg relative">
+        <h2 class="text-xl font-bold mb-4">Slot Control</h2>
+        <div id="slotControlContainer" class="space-y-4 overflow-y-auto max-h-[60vh]">
+            <!-- Slots and remarks will be dynamically inserted here by scripts.js -->
+        </div>
+        <div class="mt-4 flex justify-end gap-2">
+            <button id="closeSlotControlModal" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Close</button>
+        </div>
+    </div>
+</div>
 
-    <!-- Main content injected by page -->
-    <main class="container mx-auto my-6 px-4">
-        {% block content %}
-        <!-- Page-specific content goes here -->
-        {% endblock %}
-    </main>
+<footer class="bg-gray-200 text-center p-3 mt-6 text-sm text-gray-700">
+    &copy; {{ current_time.year }} POD Student Talent
+</footer>
 
-    <!-- Footer -->
-    <footer class="bg-gray-200 text-center p-3 mt-6 text-sm text-gray-700">
-        &copy; {{ current_time.year }} POD Student Talent
-    </footer>
+<!-- Global JS variables for role -->
+<script>
+    window.studentId = "{{ session.get('student_id', '') }}";
+    window.isCoach = {{ 'true' if session.get('role') == 'Student Coach' else 'false' }};
+    window.isCommittee = {{ 'true' if session.get('role') == 'Committee' else 'false' }};
+    window.isAdmin = {{ 'true' if session.get('role') == 'POD Staff and Administration' else 'false' }};
+</script>
 
-    <!-- Your custom JS -->
-    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
+<!-- Custom JS -->
+<script src="{{ url_for('static', filename='scripts.js') }}"></script>
+
+<script>
+    // Close Slot Control Modal
+    $("#closeSlotControlModal").click(() => {
+        $("#slotControlModal").addClass("hidden");
+    });
+
+    // Directory navigation
+    $("#directoryDropdown").change(function() {
+        if (this.value) window.location.href = this.value;
+    });
+</script>
 
 </body>
-
 </html>

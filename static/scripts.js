@@ -8,8 +8,6 @@ let committeeEntries = [];
 let MAX_SHIFTS = 100;
 let slotControlData = [];
 
-const isCommittee = window.isCommittee || false;
-const isCoach = window.isCoach || false; // set in template for Student Coach
 const shifts = ["Morning", "Afternoon", "Night"];
 const levels = ["L3", "L4", "L6"];
 const slots = [1, 2];
@@ -18,46 +16,29 @@ const slots = [1, 2];
 // GENERAL FUNCTIONS
 // ========================
 function initLogoutButton() {
-    const btn = document.getElementById("logoutBtn");
-    if (!btn) return;
+    const btn = $("#logoutBtn");
+    if (!btn.length) return;
 
-    btn.addEventListener("click", () => {
-        const choice = confirm("Back to Division Selection?");
-        if (choice) {
-            window.location.href = "/logout"; 
+    btn.click(() => {
+        if (confirm("Back to Division Selection?")) {
+            window.location.href = "/logout";
         }
     });
 }
 
 function loadSlotControl(callback) {
     $.get("/api/slot_control", function(data) {
-        slotControlData = data; // array of {date, shift_type, slot_level, slot_number, is_open, remark}
+        slotControlData = data || [];
         if (callback) callback();
     });
 }
-
-// ========================
-// ON DOCUMENT READY
-// ========================
-$(document).ready(function () {
-    initLogoutButton();
-
-    if (window.isCommittee) {
-        loadCommitteeEntries();
-        enableCommitteeDayClicks();
-    }
-
-    if (window.isCoach) {
-        enableCoachDayClicks();
-    }
-});
 
 // ========================
 // COMMITTEE FUNCTIONS
 // ========================
 function loadCommitteeEntries() {
     $.get("/api/committee/entries", function (data) {
-        committeeEntries = data;
+        committeeEntries = data || [];
         $(".day-marker").text("");
 
         data.forEach(entry => {
@@ -65,9 +46,8 @@ function loadCommitteeEntries() {
             if (!cell.length) return;
 
             const marker = cell.find(".day-marker");
-            if (entry.type === "Availability") {
-                marker.text("🟢 Available");
-            } else if (entry.type === "Event") {
+            if (entry.type === "Availability") marker.text("🟢 Available");
+            else if (entry.type === "Event") {
                 if (entry.status === "Approved") marker.text("🟢 Event Approved");
                 else if (entry.status === "Pending") marker.text("🟡 Event Pending");
                 else if (entry.status === "Rejected") marker.text("🔴 Event Rejected");
@@ -80,12 +60,8 @@ function enableCommitteeDayClicks() {
     $(".calendar-day").click(function () {
         committeeSelectedDate = $(this).data("date");
         $("#committeeSelectedDate").text("Selected Date: " + committeeSelectedDate);
-        openCommitteeModal();
+        $("#committeeModal").removeClass("hidden");
     });
-}
-
-function openCommitteeModal() {
-    $("#committeeModal").removeClass("hidden");
 }
 
 function closeCommitteeModal() {
@@ -117,12 +93,10 @@ function submitCommitteeEntry() {
 }
 
 // ========================
-// HELP FUNCTION FOR STUDENT COACH
+// STUDENT COACH FUNCTIONS
 // ========================
 function normalizeStatus(status) {
-    if (status === null || status === undefined || status === "") {
-        return "Pending";
-    }
+    if (!status) return "Pending";
     return String(status).trim();
 }
 function assertValidStatus(status) {
@@ -132,26 +106,19 @@ function assertValidStatus(status) {
     return status;
 }
 
-// ========================
-// STUDENT COACH FUNCTIONS
-// ========================
 function enableCoachDayClicks() {
     $(".calendar-day").click(function () {
-        if (!isCoach) return;
+        if (!window.isCoach) return;
 
-        // -----------------------------
-        // Set selected date
-        // -----------------------------
         coachSelectedDate = $(this).data("date");
         $("#coachSelectedDate").text(coachSelectedDate);
 
-        // -----------------------------
-        // Load slot control & coach data
-        // -----------------------------
-        loadCoachShifts(() => {
-            loadSlotControl(buildShiftSlots);
-            $("#coachModal").removeClass("hidden");
+        // Load slot control first, then coach shifts
+        loadSlotControl(() => {
+            loadCoachShifts(buildShiftSlots);
         });
+
+        $("#coachModal").removeClass("hidden");
     });
 }
 
@@ -162,8 +129,7 @@ function closeCoachModal() {
 
 function loadCoachShifts(callback) {
     $.get("/api/applications", function (data) {
-
-        coachShiftData = data.filter(a =>
+        coachShiftData = (data || []).filter(a =>
             a.division === "Student Coach" &&
             a.shift_type &&
             a.date
@@ -172,16 +138,14 @@ function loadCoachShifts(callback) {
             return a;
         });
 
-        // Update calendar markers
         setTimeout(() => { renderCoachCalendarMarkers(); }, 0);
-
         if (callback) callback();
     });
 }
 
 function renderCoachCalendarMarkers() {
     $(".day-marker").empty();
-    if (!coachShiftData || coachShiftData.length === 0) return;
+    if (!coachShiftData.length) return;
 
     coachShiftData.forEach(app => {
         const cell = $(`td[data-date='${app.date}']`);
@@ -193,29 +157,26 @@ function renderCoachCalendarMarkers() {
         else if (app.status === "Approved") icon = "🟢";
         else if (app.status === "Rejected") icon = "🔴";
 
-        marker.append(`
-            <div class="text-[10px] leading-tight">
-                ${icon} ${app.shift_type}
-            </div>
-        `);
+        marker.append(`<div class="text-[10px] leading-tight">${icon} ${app.shift_type}</div>`);
     });
 }
 
+// ========================
+// BUILD SHIFT SLOTS WITH SLOT CONTROL
+// ========================
 function buildShiftSlots() {
-    if (!coachSelectedDate || !coachShiftData) return;
+    if (!coachSelectedDate) return;
 
     let html = "";
-
     shifts.forEach(shift => {
-        html += `<div class="mb-3"><h3 class="font-semibold">${shift}</h3>`;
+        html += `
+        <details open class="border rounded p-2 bg-gray-50">
+            <summary class="font-semibold cursor-pointer">${shift}</summary>
+            <div class="flex flex-wrap gap-2 mt-2">
+        `;
+
         levels.forEach(level => {
-            html += `<div class="flex gap-2 mb-1">`;
-
             slots.forEach(slot => {
-
-                // -----------------------------
-                // Check slot control for open/close
-                // -----------------------------
                 const slotControl = slotControlData.find(sc =>
                     sc.date === coachSelectedDate &&
                     sc.shift_type === shift &&
@@ -224,15 +185,12 @@ function buildShiftSlots() {
                 );
 
                 let slotStatus = "Closed";
-                let slotRemark = "";
-                if (slotControl && slotControl.is_open === "Open") {
-                    slotStatus = "Open";
-                    slotRemark = slotControl.remark || "";
+                let remark = "";
+                if (slotControl) {
+                    slotStatus = (slotControl.is_open === true || String(slotControl.is_open).toLowerCase() === "true") ? "Open" : "Closed";
+                    remark = slotControl.remarks || "";
                 }
 
-                // -----------------------------
-                // Existing bookings
-                // -----------------------------
                 const slotApps = coachShiftData.filter(s =>
                     s.date === coachSelectedDate &&
                     s.shift_type === shift &&
@@ -244,70 +202,53 @@ function buildShiftSlots() {
                 const approvedApp = slotApps.find(s => s.status === "Approved" && String(s.student_id) !== String(window.studentId));
                 const pendingCount = slotApps.filter(s => s.status === "Pending" && String(s.student_id) !== String(window.studentId)).length;
 
-                // -----------------------------
-                // Button label and status
-                // -----------------------------
-                let label = "Book";
-                let disabled = false;
-                let action = "book";
-
-                if (slotStatus === "Closed") {
-                    label = `CLOSED${slotRemark ? " — " + slotRemark : ""}`;
-                    disabled = true;
-                    action = "disabled";
-                }
+                let label = slotStatus === "Closed" ? "CLOSED" : "Book";
+                let disabled = slotStatus === "Closed";
+                let action = slotStatus === "Closed" ? "disabled" : "book";
+                let btnColor = slotStatus === "Closed" ? "bg-gray-300 text-gray-600" : "bg-green-500 text-white";
 
                 if (slotStatus === "Open") {
                     if (myApp) {
-                        if (myApp.status === "Pending") {
-                            label = "🟡 Applied pending approval — Cancel";
-                            action = "cancel";
-                        } else if (myApp.status === "Approved") {
-                            label = `🟢 ${myApp.student_name} — Cancel`;
-                            action = "cancel";
-                        } else if (myApp.status === "Rejected") {
-                            label = "🔴 Rejected";
-                            disabled = true;
-                            action = "disabled";
-                        }
+                        if (myApp.status === "Pending") { label = "🟡 Pending — Cancel"; action = "cancel"; btnColor="bg-yellow-400 text-black"; }
+                        else if (myApp.status === "Approved") { label = `🟢 ${myApp.student_name} — Cancel`; action = "cancel"; btnColor="bg-blue-500 text-white"; }
+                        else if (myApp.status === "Rejected") { label = "🔴 Rejected"; disabled = true; action = "disabled"; btnColor="bg-red-500 text-white"; }
                     } else if (approvedApp) {
                         label = `🟢 ${approvedApp.student_name}`;
                         disabled = true;
                         action = "disabled";
+                        btnColor="bg-blue-500 text-white";
                     } else if (pendingCount > 0) {
                         label = `🟡 Join waiting list (${pendingCount})`;
                         action = "book";
+                        btnColor="bg-yellow-400 text-black";
                     }
                 }
 
-                const safeShift = shift.replace(/'/g, "\\'");
-                const safeLevel = level.replace(/'/g, "\\'");
-                const safeAction = action.replace(/'/g, "\\'");
-
                 html += `
-                    <button class="slot-btn border px-2 py-1 rounded ${disabled ? 'opacity-50' : ''}"
-                        data-shift="${safeShift}"
-                        data-level="${safeLevel}"
+                    <button class="slot-btn ${btnColor} px-3 py-1 rounded font-semibold ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 transition'}"
+                        data-shift="${shift}"
+                        data-level="${level}"
                         data-slot="${slot}"
-                        data-action="${safeAction}"
-                        onclick="handleCoachSlotClick('${safeShift}','${safeLevel}',${slot},'${safeAction}')"
+                        data-action="${action}"
+                        title="${remark}"
+                        onclick="handleCoachSlotClick('${shift}','${level}',${slot},'${action}')"
                         ${disabled ? 'disabled' : ''}>
-                        ${label}
+                        ${label}${remark ? ' – ' + remark : ''}
                     </button>
                 `;
             });
-
-            html += `</div>`;
         });
 
-        html += `</div>`;
+        html += `</div></details>`;
     });
 
     $("#shiftContainer").html(html);
 }
 
-function handleCoachSlotClick(shift, level, slot) {
-
+// ========================
+// HANDLE COACH SLOT CLICK
+// ========================
+function handleCoachSlotClick(shift, level, slot, action) {
     const slotApps = coachShiftData.filter(s =>
         s.date === coachSelectedDate &&
         s.shift_type === shift &&
@@ -317,13 +258,9 @@ function handleCoachSlotClick(shift, level, slot) {
 
     const myApp = slotApps.find(s => String(s.student_id) === String(window.studentId));
     const approvedByOthers = slotApps.find(s =>
-        s.status === "Approved" &&
-        String(s.student_id) !== String(window.studentId)
+        s.status === "Approved" && String(s.student_id) !== String(window.studentId)
     );
 
-    // ==========================
-    // CANCEL (own pending / approved)
-    // ==========================
     if (myApp && (myApp.status === "Pending" || myApp.status === "Approved")) {
         if (!confirm("Cancel this shift?")) return;
 
@@ -331,31 +268,14 @@ function handleCoachSlotClick(shift, level, slot) {
             url: "/api/coach/cancel",
             method: "POST",
             contentType: "application/json",
-            data: JSON.stringify({
-                date: coachSelectedDate,
-                shift,
-                level,
-                slot
-            }),
-            success: function () {
-                loadCoachShifts(buildShiftSlots);
-            }
+            data: JSON.stringify({ date: coachSelectedDate, shift, level, slot }),
+            success: function () { loadCoachShifts(buildShiftSlots); }
         });
-
         return;
     }
 
-    // ==========================
-    // BLOCKED (approved by others)
-    // ==========================
-    if (approvedByOthers) {
-        alert("This slot is already filled.");
-        return;
-    }
+    if (approvedByOthers) { alert("This slot is already filled."); return; }
 
-    // ==========================
-    // BOOK (check max shifts)
-    // ==========================
     const myBookingsMonth = coachShiftData.filter(s =>
         String(s.student_id) === String(window.studentId) &&
         s.status !== "Rejected" &&
@@ -367,37 +287,32 @@ function handleCoachSlotClick(shift, level, slot) {
         return;
     }
 
-    const payload = {
-        date: coachSelectedDate,
-        shift_type: shift,
-        slot_level: level,
-        slot_number: slot
-    };
-
     $.ajax({
         url: "/api/submit",
         method: "POST",
         contentType: "application/json",
-        data: JSON.stringify(payload),
-        success: function () {
-            loadCoachShifts(buildShiftSlots);
-        },
-        error: function (xhr) {
-            alert("Submit failed.");
-        }
+        data: JSON.stringify({ date: coachSelectedDate, shift_type: shift, slot_level: level, slot_number: slot }),
+        success: function () { loadCoachShifts(buildShiftSlots); },
+        error: function () { alert("Submit failed."); }
     });
 }
 
 // ========================
-// DIRECTORY DROPDOWN NAV
+// DOCUMENT READY
 // ========================
-document.addEventListener("DOMContentLoaded", function () {
-    const dropdown = document.getElementById("directoryDropdown");
-    if (!dropdown) return;
+$(document).ready(function () {
+    // Logout
+    initLogoutButton();
 
-    dropdown.addEventListener("change", function () {
-        if (this.value) {
-            window.location.href = this.value;
-        }
-    });
+    // Directory navigation
+    const dropdown = $("#directoryDropdown");
+    if (dropdown.length) {
+        dropdown.change(function () { if (this.value) window.location.href = this.value; });
+    }
+
+    // Committee
+    if (window.isCommittee) { loadCommitteeEntries(); enableCommitteeDayClicks(); }
+
+    // Student Coach
+    if (window.isCoach) { enableCoachDayClicks(); }
 });
