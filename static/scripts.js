@@ -164,6 +164,9 @@ function renderCoachCalendarMarkers() {
 // ========================
 // BUILD SHIFT SLOTS WITH SLOT CONTROL
 // ========================
+console.log("coachSelectedDate:", coachSelectedDate);
+console.log("slotControlData sample:", slotControlData.slice(0, 3));
+
 function buildShiftSlots() {
     if (!coachSelectedDate) return;
 
@@ -178,17 +181,19 @@ function buildShiftSlots() {
         levels.forEach(level => {
             slots.forEach(slot => {
                 const slotControl = slotControlData.find(sc =>
-                    sc.date === coachSelectedDate &&
-                    sc.shift_type === shift &&
-                    sc.slot_level === level &&
-                    sc.slot_number === slot
+                    String(sc.date).trim().slice(0, 10) === String(coachSelectedDate).trim() &&
+                    String(sc.shift_type).trim() === shift &&
+                    String(sc.slot_level).trim() === level &&
+                    Number(sc.slot_number) === Number(slot)
                 );
 
-                let slotStatus = "Closed";
-                let remark = "";
+let slotStatus = "Closed";
+let remark = "";
+
                 if (slotControl) {
-                    slotStatus = (slotControl.is_open === true || String(slotControl.is_open).toLowerCase() === "true") ? "Open" : "Closed";
-                    remark = slotControl.remarks || "";
+                    const isOpen = String(slotControl.is_open).toLowerCase() === "true" || slotControl.is_open === 1;
+                    slotStatus = isOpen ? "Open" : "Closed";
+                    remark = slotControl.remark || "";
                 }
 
                 const slotApps = coachShiftData.filter(s =>

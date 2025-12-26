@@ -475,40 +475,58 @@ def login():
 
 @app.route("/calendar")
 def calendar_view():
-    # Not logged in → go back to division selection
+    # -------------------------------
+    # Access control
+    # -------------------------------
     if "student_id" not in session:
         return redirect(url_for("select_division"))
 
-    # Admin is NOT allowed to see calendar → force admin home
     if session.get("role") == "POD Staff and Administration":
         return redirect(url_for("admin_home"))
 
     # -------------------------------
-    # Prepare calendar data
+    # Determine month/year to display
     # -------------------------------
     sg = datetime.now(timezone("Asia/Singapore"))
-    year = sg.year
-    month = sg.month
-    
-    # Ensure slot control rows exist for student view
+    try:
+        year = int(request.args.get("year", sg.year))
+        month = int(request.args.get("month", sg.month))
+    except (TypeError, ValueError):
+        year = sg.year
+        month = sg.month
+        # HARD guard
+    if month < 1 or month > 12:
+        month = sg.month
+
+    # -------------------------------
+    # Ensure slot control rows exist
+    # -------------------------------
+    def generate_month_slots(year, month):
+        if not isinstance(month, int) or not (1 <= month <= 12):
+            return  # silently skip invalid month
     generate_month_slots(year, month)
-    # ALSO ensure next month if visible
+    # Also ensure next month is generated if visible
     next_month = month + 1 if month < 12 else 1
     next_year = year if month < 12 else year + 1
     generate_month_slots(next_year, next_month)
 
+    # -------------------------------
+    # Prepare calendar grid
+    # -------------------------------
     month_name = calendar.month_name[month]
     cal = calendar.Calendar(firstweekday=0).monthdayscalendar(year, month)
 
+    # -------------------------------
+    # Role flags
+    # -------------------------------
     role = session.get("role", "")
-    is_pod = False  # admin never reaches here
+    is_pod = False
     is_committee = role == "Student Talent Committee and Ambassador"
     is_coach = role == "Student Coach"
 
     # -------------------------------
     # Prepare slot data for the month
     # -------------------------------
-    # Example structure: list of dicts, one per slot
     calendar_data = []
     shift_types = ["Morning", "Afternoon", "Night"]
     slot_levels = ["L3", "L4", "L6"]
@@ -603,18 +621,7 @@ def projecthub_duty_calendar():
         levels=levels  # pass levels for template loop
     )
 
-# ==========================
-# COMMITTEE APIs
-# ==========================
-@app.route("/api/committee/calendar")
-def api_committee_calendar():
-    if session.get("role") not in ["Student Talent Committee and Ambassador",
-                                   "POD Staff and Administration"]:
-        return jsonify([])
-    return jsonify(load_committee_entries(session.get("role")))
 
-@app.route("/api/committee/submit", methods=["POST"])
-def api_committee_submit():
     if session.get("role") != "Student Talent Committee and Ambassador":
         return jsonify({"message": "Unauthorized"}), 403
     data = request.get_json()
@@ -637,12 +644,20 @@ def api_committee_submit():
 # ==========================
 # STUDENT COACH APIs
 # ==========================
+
 @app.route("/api/applications")
 def api_applications():
     ensure_applications_file()
+    
+    # Load students data for Batch/Division
+    students_dict = load_students_dict()  # keyed by StudentID
+    
+    # Load all applications
     wb = openpyxl.load_workbook(APPLICATIONS_FILE)
     ws = wb.active
     rows = []
+    
+    # Prepare waiting_map: key = (Date, ShiftType, SlotLevel, SlotNumber)
     waiting_map = {}
     for r in ws.iter_rows(min_row=2, values_only=True):
         if r[1] != "Student Coach":
@@ -651,14 +666,29 @@ def api_applications():
             continue
         key = (r[4], r[5], r[6], r[7])
         waiting_map[key] = waiting_map.get(key, 0) + 1
-    for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+
+    # Count total approved slots per student
+    total_slots_map = {}
+    for r in ws.iter_rows(min_row=2, values_only=True):
+        if r[1] != "Student Coach":
+            continue
+        student_id = str(r[2])
+        total_slots_map[student_id] = total_slots_map.get(student_id, 0) + 1
+
+    # Iterate applications to build API response
+    for row in ws.iter_rows(min_row=2, values_only=True):
         if row[1] != "Student Coach":
             continue
-        status = row[11]
+
+        student_id = str(row[2])
+        student_info = students_dict.get(student_id, {})
+        batch = student_info.get("current_year", "")
+        total_slots = total_slots_map.get(student_id, 0)
+
         rows.append({
             "timestamp": row[0],
             "division": row[1],
-            "student_id": row[2],
+            "student_id": student_id,
             "student_name": row[3],
             "date": row[4],
             "shift_type": row[5],
@@ -667,9 +697,14 @@ def api_applications():
             "preference": row[8],
             "type": row[9],
             "details": row[10],
-            "status": status,
-            "waiting_count": waiting_map.get((row[4], row[5], row[6], row[7]), 0)
+            "status": row[11],
+            "waiting_count": waiting_map.get((row[4], row[5], row[6], row[7]), 0),
+            "admin_decision": row[13] if len(row) > 13 else "",
+            "admin_remark": row[14] if len(row) > 14 else "",
+            "batch": batch,
+            "total_slots": total_slots
         })
+
     return jsonify(rows)
 
 @app.route("/api/submit", methods=["POST"])

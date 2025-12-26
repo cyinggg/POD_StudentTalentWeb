@@ -93,6 +93,9 @@ function loadPending() {
                     <td class="border px-4 py-2">${app.slot_level}</td>
                     <td class="border px-4 py-2">${app.slot_number}</td>
                     <td class="border px-4 py-2">${app.student_name}</td>
+                    <td class="border px-4 py-2">${app.batch || ''}</td>
+                    <td class="border px-4 py-2">${app.total_slots || 0}</td>
+                    <td class="border px-4 py-2">${app.preference || ''}</td>
                     <td class="border px-4 py-2 status-col">${app.status}</td>
                     <td class="border px-4 py-2">
                         <select class="admin-decision">

@@ -12,11 +12,28 @@
     window.studentId = "{{ session['student_id'] }}";
 </script>
 
+<script>
+    window.selectedMonth = "{{ year }}-{{ '%02d'|format(month) }}";
+</script>
+
 <!-- CALENDAR -->
 <div class="max-w-4xl mx-auto bg-white p-4 mt-6 rounded shadow">
-    <h2 class="text-center text-2xl font-semibold mb-4">
-        {{ month_name }} {{ year }}
-    </h2>
+
+    <!-- Month Navigation -->
+    <div class="flex justify-between items-center mb-4">
+        {% set prev_month = month - 1 if month > 1 else 12 %}
+        {% set prev_year = year if month > 1 else year - 1 %}
+        {% set next_month = month + 1 if month < 12 else 1 %}
+        {% set next_year = year if month < 12 else year + 1 %}
+
+        <button onclick="window.location.href='{{ url_for('calendar_view') }}?month={{ prev_month }}&year={{ prev_year }}'"
+                class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">← Prev</button>
+
+        <h2 class="text-center text-2xl font-semibold">{{ month_name }} {{ year }}</h2>
+
+        <button onclick="window.location.href='{{ url_for('calendar_view') }}?month={{ next_month }}&year={{ next_year }}'"
+                class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Next →</button>
+    </div>
 
     <table class="w-full table-fixed border-collapse">
         <thead>
@@ -49,31 +66,6 @@
         {% endfor %}
         </tbody>
     </table>
-</div>
-
-<!-- ============================= -->
-<!-- COMMITTEE MODAL -->
-<!-- ============================= -->
-<div id="committeeModal"
-     class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white w-96 p-6 rounded shadow">
-        <h2 class="text-lg font-bold mb-2">Submit Entry</h2>
-        <p id="committeeSelectedDate" class="font-semibold mb-3"></p>
-
-        <label class="block font-semibold">Type</label>
-        <select id="committeeType" class="w-full border p-2 mb-3">
-            <option value="Availability">Availability</option>
-            <option value="Event">Event</option>
-        </select>
-
-        <label class="block font-semibold">Details</label>
-        <textarea id="committeeDetails" class="w-full border p-2 mb-4" rows="3"></textarea>
-
-        <div class="flex justify-between">
-            <button onclick="closeCommitteeModal()" class="px-4 py-2 bg-gray-400 text-white rounded">Cancel</button>
-            <button onclick="submitCommitteeEntry()" class="px-4 py-2 bg-blue-600 text-white rounded">Submit</button>
-        </div>
-    </div>
 </div>
 
 <!-- ============================= -->
