@@ -29,6 +29,14 @@ NOTIFICATIONS_FILE = os.path.join(DATA_DIR, "notifications.xlsx")
 COMMITTEE_FILE = os.path.join(DATA_DIR, "committee_calendar.xlsx")
 SLOT_CONTROL_FILE = os.path.join(DATA_DIR, "slot_control.xlsx")
 
+UPLOAD_MAP = {
+    "studentcoach": STUDENTCOACH_FILE,
+    "applications": APPLICATIONS_FILE,
+    "notifications": NOTIFICATIONS_FILE,
+    "committee": COMMITTEE_FILE,
+    "slot_control": SLOT_CONTROL_FILE,
+}
+
 # ==========================
 # CONTEXT PROCESSORS
 # ==========================
@@ -578,52 +586,6 @@ def logout():
 def projecthub_home():
     return render_template("projecthub_home.html")
 
-# @app.route("/projecthub/student_coach_schedule")
-# def projecthub_duty_calendar():
-
-#     ensure_applications_file()  # Make sure applications.xlsx exists
-
-#     # Build approved_bookings dict for template
-#     approved_bookings = {}
-
-#     for _, row in df.iterrows():
-#         # Only consider rows where AdminDecision == "Approved"
-#         if str(row.get("AdminDecision", "")).strip() != "Approved":
-#             continue
-
-#         date_str = row.get("Date")
-#         if not isinstance(date_str, str):
-#             # Ensure date is in YYYY-MM-DD format
-#             date_str = APPLICATIONS_FILE.to_datetime(date_str).strftime("%Y-%m-%d")
-
-#         shift = str(row.get("ShiftType"))
-#         level = str(row.get("SlotLevel"))
-#         slot = int(row.get("SlotNumber", 1))
-#         student_name = str(row.get("StudentName"))
-
-#         key = (date_str, shift, level, slot)
-#         approved_bookings[key] = student_name
-
-#     # Get current month/year for calendar display
-#     sg = datetime.now()
-#     year = sg.year
-#     month = sg.month
-#     month_name = calendar.month_name[month]
-#     cal = calendar.Calendar(firstweekday=0).monthdayscalendar(year, month)
-
-#     # Extract unique slot levels from current approved bookings for display
-#     levels = sorted(df["SlotLevel"].dropna().unique())
-
-#     return render_template(
-#         "projecthub_duty_calendar.html",
-#         approved_bookings=approved_bookings,
-#         year=year,
-#         month=month,
-#         month_name=month_name,
-#         cal=cal,
-#         levels=levels  # pass levels for template loop
-#     )
-
 @app.route("/projecthub/student_coach_schedule")
 def projecthub_duty_calendar():
 
@@ -775,6 +737,52 @@ def api_submit():
     wb.save(APPLICATIONS_FILE)
     return jsonify({"status": "success", "message": f"Shift booked (Pending) — Preference {current_pref}", "preference": current_pref})
 
+@app.route("/api/coach/cancel", methods=["POST"])
+def api_coach_cancel():
+    if "student_id" not in session:
+        return jsonify({"success": False, "message": "Not logged in"}), 401
+
+    data = request.get_json()
+    if ws.max_column < 16:
+        ws.cell(row=1, column=16).value = "Cancelled At"
+
+    date = data.get("date")
+    shift = data.get("shift")
+    level = data.get("level")
+    slot = data.get("slot")
+
+    if not all([date, shift, level, slot]):
+        return jsonify({"success": False, "message": "Missing data"}), 400
+
+    ensure_applications_file()
+    wb = openpyxl.load_workbook(APPLICATIONS_FILE)
+    ws = wb.active
+
+    cancelled = False
+
+    for row in ws.iter_rows(min_row=2):
+        if (
+            str(row[2].value) == str(session["student_id"]) and
+            str(row[4].value) == str(date) and
+            str(row[5].value) == str(shift) and
+            str(row[6].value) == str(level) and
+            str(row[7].value) == str(slot) and
+            str(row[11].value) in ["Pending", "Approved"]
+        ):
+            row[11].value = "Cancelled"
+            cancelled_col = 16  # Column P
+            ws.cell(row=row[0].row, column=cancelled_col).value = \
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cancelled = True
+            break
+
+    wb.save(APPLICATIONS_FILE)
+
+    if cancelled:
+        return jsonify({"success": True})
+    else:
+        return jsonify({"success": False, "message": "Student Coach cancel slot not found"}), 404
+
 @app.route("/projecthub/my_bookings")
 def my_bookings():
     return render_template("my_bookings.html")
@@ -793,23 +801,61 @@ def admin_upload():
     if session.get("role") != "POD Staff and Administration":
         return "Unauthorized", 403
 
-    if 'file' not in request.files:
-        flash("No file part")
+    file = request.files.get("file")
+    if not file or file.filename == "":
+        flash("No file selected")
         return redirect(url_for("admin_downloads_page"))
 
-    file = request.files['file']
-    if file.filename == '':
-        flash("No selected file")
+    filename = secure_filename(file.filename)
+
+    # Only allow exact known files
+    allowed = {
+        os.path.basename(STUDENTCOACH_FILE): STUDENTCOACH_FILE,
+        os.path.basename(APPLICATIONS_FILE): APPLICATIONS_FILE,
+        os.path.basename(SLOT_CONTROL_FILE): SLOT_CONTROL_FILE,
+        os.path.basename(NOTIFICATIONS_FILE): NOTIFICATIONS_FILE,
+        os.path.basename(COMMITTEE_FILE): COMMITTEE_FILE,
+    }
+
+    if filename not in allowed:
+        flash("Invalid file name. Upload must match an existing system file.")
         return redirect(url_for("admin_downloads_page"))
 
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        file.save(os.path.join(DATA_DIR, filename))
-        flash(f"File '{filename}' uploaded successfully and replaced existing file.")
+    if not filename.lower().endswith(".xlsx"):
+        flash("Only .xlsx files are allowed")
         return redirect(url_for("admin_downloads_page"))
-    else:
-        flash("Invalid file type. Only .xlsx allowed.")
+
+    # SLOT CONTROL STRUCTURE VALIDATION
+    if filename == os.path.basename(SLOT_CONTROL_FILE):
+        try:
+            df_check = pd.read_excel(file)
+            required_cols = {
+                "Month", "Date", "ShiftType",
+                "SlotLevel", "SlotNumber", "IsOpen"
+            }
+
+            if not required_cols.issubset(df_check.columns):
+                flash("slot_control.xlsx has invalid or missing columns")
+                return redirect(url_for("admin_downloads_page"))
+
+            # Reset file pointer after reading
+            file.seek(0)
+
+        except Exception as e:
+            flash(f"Failed to read slot_control.xlsx: {e}")
+            return redirect(url_for("admin_downloads_page"))
+
+    target_path = allowed[filename]
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+
+    try:
+        file.save(target_path)
+    except Exception as e:
+        flash(f"Upload failed: {e}")
         return redirect(url_for("admin_downloads_page"))
+
+    flash(f"{filename} replaced successfully")
+    return redirect(url_for("admin_downloads_page"))
 
 # Admin-only route to download Excel files
 @app.route("/admin/download/<filename>")
@@ -817,20 +863,29 @@ def admin_download(filename):
     if session.get("role") != "POD Staff and Administration":
         return "Unauthorized", 403
 
-    # Allowed files from your constants
-    allowed_files = [
+    allowed_files = {
         os.path.basename(STUDENTCOACH_FILE),
         os.path.basename(APPLICATIONS_FILE),
         os.path.basename(SLOT_CONTROL_FILE),
         os.path.basename(NOTIFICATIONS_FILE),
-        os.path.basename(COMMITTEE_FILE)
-    ]
+        os.path.basename(COMMITTEE_FILE),
+    }
 
     if filename not in allowed_files:
         return "File not found", 404
 
-    return send_from_directory(DATA_DIR, filename, as_attachment=True)
+    file_path = os.path.join(DATA_DIR, filename)
+    if not os.path.exists(file_path):
+        return "File missing on server", 404
 
+    download_name = f"{datetime.now():%Y%m%d_%H%M%S}_{filename}"
+
+    return send_from_directory(
+        DATA_DIR,
+        filename,
+        as_attachment=True,
+        download_name=download_name
+    )
 
 # Admin page to list downloadable Excel files
 @app.route("/admin/downloads")
@@ -838,13 +893,13 @@ def admin_downloads_page():
     if session.get("role") != "POD Staff and Administration":
         return redirect(url_for("admin_home"))
 
-    excel_files = [
+    excel_files = sorted([
         os.path.basename(STUDENTCOACH_FILE),
         os.path.basename(APPLICATIONS_FILE),
         os.path.basename(SLOT_CONTROL_FILE),
         os.path.basename(NOTIFICATIONS_FILE),
         os.path.basename(COMMITTEE_FILE)
-    ]
+    ])
 
     return render_template("admin_downloads.html", excel_files=excel_files)
 
