@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, send_from_directory
 import openpyxl
 from datetime import datetime, timedelta
 from pytz import timezone
@@ -6,6 +6,9 @@ import calendar
 import os
 import pandas as pd
 import calendar as cal_module
+
+from werkzeug.utils import secure_filename
+ALLOWED_EXTENSIONS = {"xlsx"}
 
 app = Flask(__name__)
 
@@ -36,6 +39,9 @@ def inject_current_time():
 # ==========================
 # HELPER FUNCTIONS
 # ==========================
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 def load_students_dict():
     """Load students into dict keyed by Student ID"""
     students = {}
@@ -781,6 +787,66 @@ def admin_home():
     if session.get("role") != "POD Staff and Administration":
         return redirect(url_for("select_division"))
     return render_template("admin_home.html")
+
+@app.route("/admin/upload", methods=["POST"])
+def admin_upload():
+    if session.get("role") != "POD Staff and Administration":
+        return "Unauthorized", 403
+
+    if 'file' not in request.files:
+        flash("No file part")
+        return redirect(url_for("admin_downloads_page"))
+
+    file = request.files['file']
+    if file.filename == '':
+        flash("No selected file")
+        return redirect(url_for("admin_downloads_page"))
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(DATA_DIR, filename))
+        flash(f"File '{filename}' uploaded successfully and replaced existing file.")
+        return redirect(url_for("admin_downloads_page"))
+    else:
+        flash("Invalid file type. Only .xlsx allowed.")
+        return redirect(url_for("admin_downloads_page"))
+
+# Admin-only route to download Excel files
+@app.route("/admin/download/<filename>")
+def admin_download(filename):
+    if session.get("role") != "POD Staff and Administration":
+        return "Unauthorized", 403
+
+    # Allowed files from your constants
+    allowed_files = [
+        os.path.basename(STUDENTCOACH_FILE),
+        os.path.basename(APPLICATIONS_FILE),
+        os.path.basename(SLOT_CONTROL_FILE),
+        os.path.basename(NOTIFICATIONS_FILE),
+        os.path.basename(COMMITTEE_FILE)
+    ]
+
+    if filename not in allowed_files:
+        return "File not found", 404
+
+    return send_from_directory(DATA_DIR, filename, as_attachment=True)
+
+
+# Admin page to list downloadable Excel files
+@app.route("/admin/downloads")
+def admin_downloads_page():
+    if session.get("role") != "POD Staff and Administration":
+        return redirect(url_for("admin_home"))
+
+    excel_files = [
+        os.path.basename(STUDENTCOACH_FILE),
+        os.path.basename(APPLICATIONS_FILE),
+        os.path.basename(SLOT_CONTROL_FILE),
+        os.path.basename(NOTIFICATIONS_FILE),
+        os.path.basename(COMMITTEE_FILE)
+    ]
+
+    return render_template("admin_downloads.html", excel_files=excel_files)
 
 @app.route("/api/slot_control")
 def api_slot_control():
