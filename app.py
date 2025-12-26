@@ -572,26 +572,68 @@ def logout():
 def projecthub_home():
     return render_template("projecthub_home.html")
 
+# @app.route("/projecthub/student_coach_schedule")
+# def projecthub_duty_calendar():
+
+#     ensure_applications_file()  # Make sure applications.xlsx exists
+
+#     # Build approved_bookings dict for template
+#     approved_bookings = {}
+
+#     for _, row in df.iterrows():
+#         # Only consider rows where AdminDecision == "Approved"
+#         if str(row.get("AdminDecision", "")).strip() != "Approved":
+#             continue
+
+#         date_str = row.get("Date")
+#         if not isinstance(date_str, str):
+#             # Ensure date is in YYYY-MM-DD format
+#             date_str = APPLICATIONS_FILE.to_datetime(date_str).strftime("%Y-%m-%d")
+
+#         shift = str(row.get("ShiftType"))
+#         level = str(row.get("SlotLevel"))
+#         slot = int(row.get("SlotNumber", 1))
+#         student_name = str(row.get("StudentName"))
+
+#         key = (date_str, shift, level, slot)
+#         approved_bookings[key] = student_name
+
+#     # Get current month/year for calendar display
+#     sg = datetime.now()
+#     year = sg.year
+#     month = sg.month
+#     month_name = calendar.month_name[month]
+#     cal = calendar.Calendar(firstweekday=0).monthdayscalendar(year, month)
+
+#     # Extract unique slot levels from current approved bookings for display
+#     levels = sorted(df["SlotLevel"].dropna().unique())
+
+#     return render_template(
+#         "projecthub_duty_calendar.html",
+#         approved_bookings=approved_bookings,
+#         year=year,
+#         month=month,
+#         month_name=month_name,
+#         cal=cal,
+#         levels=levels  # pass levels for template loop
+#     )
+
 @app.route("/projecthub/student_coach_schedule")
 def projecthub_duty_calendar():
 
-    ensure_applications_file()  # Make sure applications.xlsx exists
+    ensure_applications_file()  # keep
 
-    # Load Excel into DataFrame
     df = pd.read_excel(APPLICATIONS_FILE)
 
-    # Build approved_bookings dict for template
     approved_bookings = {}
 
     for _, row in df.iterrows():
-        # Only consider rows where AdminDecision == "Approved"
         if str(row.get("AdminDecision", "")).strip() != "Approved":
             continue
 
         date_str = row.get("Date")
         if not isinstance(date_str, str):
-            # Ensure date is in YYYY-MM-DD format
-            date_str = pd.to_datetime(date_str).strftime("%Y-%m-%d")
+            date_str = df.to_datetime(date_str).strftime("%Y-%m-%d")
 
         shift = str(row.get("ShiftType"))
         level = str(row.get("SlotLevel"))
@@ -601,14 +643,18 @@ def projecthub_duty_calendar():
         key = (date_str, shift, level, slot)
         approved_bookings[key] = student_name
 
-    # Get current month/year for calendar display
+    # ✅ MONTH NAVIGATION SUPPORT
     sg = datetime.now()
-    year = sg.year
-    month = sg.month
+    year = request.args.get("year", type=int) or sg.year
+    month = request.args.get("month", type=int) or sg.month
+
+    if month < 1 or month > 12:
+        year = sg.year
+        month = sg.month
+
     month_name = calendar.month_name[month]
     cal = calendar.Calendar(firstweekday=0).monthdayscalendar(year, month)
 
-    # Extract unique slot levels from current approved bookings for display
     levels = sorted(df["SlotLevel"].dropna().unique())
 
     return render_template(
@@ -618,28 +664,8 @@ def projecthub_duty_calendar():
         month=month,
         month_name=month_name,
         cal=cal,
-        levels=levels  # pass levels for template loop
+        levels=levels
     )
-
-
-    if session.get("role") != "Student Talent Committee and Ambassador":
-        return jsonify({"message": "Unauthorized"}), 403
-    data = request.get_json()
-    entry_type = data.get("type")
-    status = "Approved" if entry_type == "Availability" else "Pending"
-    ts = datetime.now(timezone("Asia/Singapore")).strftime("%Y-%m-%d %H:%M:%S")
-    record = [
-        ts,
-        session.get("role"),
-        session.get("student_id"),
-        session.get("student_name"),
-        data.get("date"),
-        entry_type,
-        data.get("details", ""),
-        status
-    ]
-    append_committee_entry(record)
-    return jsonify({"message": f"{entry_type} submitted ({status})"})
 
 # ==========================
 # STUDENT COACH APIs
