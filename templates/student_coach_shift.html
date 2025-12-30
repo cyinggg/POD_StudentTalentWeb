@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Student Coach Shift Booking</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/student_coach_shift.css') }}">
+</head>
+<body>
+<h2>{{ user.name }} — Shift Booking</h2>
+
+<form method="get" class="toolbar">
+    Year <input type="number" name="year" value="{{ year }}">
+    Month <input type="number" name="month" value="{{ month }}">
+    View
+    <select name="view">
+        <option value="calendar" {% if view=="calendar" %}selected{% endif %}>Calendar</option>
+        <option value="table" {% if view=="table" %}selected{% endif %}>Table</option>
+    </select>
+    <button class="btn">Reload</button>
+
+    <div style="display:flex; gap:10px;">
+        <button type="button" onclick="window.history.back();" class="btn">Back</button>
+        <a href="{{ url_for('student_home') }}" class="btn">Home</a>
+    </div>
+
+</form>
+
+{% if view=="calendar" %}
+<div class="calendar">
+    <div class="calendar-header">
+        <div>Mon</div><div>Tue</div><div>Wed</div>
+        <div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div>
+    </div>
+    {% for week in weeks %}
+    <div class="calendar-week">
+        {% for day in week %}
+        <div class="calendar-day {% if day.date==today %}today{% endif %} {% if day.date.month != month %}other-month{% endif %}">
+            <div class="day-number">{{ day.date.day }}</div>
+            {% for shift in day.shifts %}
+            <div class="shift-block {{ shift.status }} {% if not shift.iseligible %}ineligible{% endif %}"
+                 data-date="{{ shift.date }}"
+                 data-shift="{{ shift.shiftperiod }}"
+                 data-level="{{ shift.shiftlevel }}">
+                {{ shift.shiftperiod }} {{ shift.shiftlevel }}<br>
+                {{ shift.status|capitalize }}
+                {% if not shift.iseligible %}<br><small>{{ shift.reason }}</small>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+{% elif view=="table" %}
+<table class="shift-table">
+    <thead>
+        <tr>
+            <th>Date</th><th>Day</th><th>Shift</th><th>Level</th><th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for week in weeks %}
+        {% for day in week %}
+            {% for shift in day.shifts %}
+            <tr>
+                <td>{{ day.date.strftime("%Y-%m-%d") }}</td>
+                <td>{{ day.date.strftime("%A") }}</td>
+                <td>{{ shift.shiftperiod }}</td>
+                <td>{{ shift.shiftlevel }}</td>
+                <td class="{{ shift.status }} {% if not shift.iseligible %}ineligible{% endif %}"
+                    data-date="{{ shift.date }}"
+                    data-shift="{{ shift.shiftperiod }}"
+                    data-level="{{ shift.shiftlevel }}">
+                    {{ shift.status|capitalize }}
+                    {% if not shift.iseligible %}<br><small>{{ shift.reason }}</small>{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        {% endfor %}
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<script src="{{ url_for('static', filename='js/student_coach_shift.js') }}"></script>
+</body>
+</html>

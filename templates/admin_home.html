@@ -1,30 +1,21 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Home</title>
+</head>
+<body>
+    <h2>Welcome, {{ user.name }}</h2>
 
-{% block title %}Admin Dashboard{% endblock %}
+    <ul>
+        <li><a href="/admin/slot_control">Slot Control</a></li>
+        <li><a href="/admin/review">Shift Applications</a></li>
+        <li><a href="/admin/review">Shift Records</a></li>
+        <li><a href="/admin/review">Shift Verification</a></li>
+        <li><a href="/admin/review">Reports / Export</a></li>
+        <li><a href="/projecthub_duty_calendar">ProjectHub Calendar</a></li>
+    </ul>
 
-{% block content %}
-<h2 class="text-xl font-bold mb-6">POD Staff & Administration</h2>
-
-<div class="flex gap-6">
-    <a href="/calendar"
-       class="bg-blue-600 text-white px-6 py-4 rounded hover:bg-blue-700">
-        View Calendar
-    </a>
-
-    <a href="/admin_approvals"
-       class="bg-green-600 text-white px-6 py-4 rounded hover:bg-green-700">
-        Approve / Reject Bookings
-    </a>
-
-    <a href="/projecthub/admin_slot_control"
-        class="px-4 py-2 bg-blue-600 text-white rounded">
-        Slot Control
-    </a>
-
-    <a href="{{ url_for('admin_downloads_page') }}"
-        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-        Upload or Download Excel Files
-    </a>
-
-</div>
-{% endblock %}
+    <br>
+    <a href="/logout">Logout</a>
+</body>
+</html>

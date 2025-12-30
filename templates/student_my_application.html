@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Shift Applications</title>
+</head>
+<body>
+    <h2>My Shift Applications</h2>
+
+    {% if applications|length == 0 %}
+        <p>You have not applied for any shifts yet.</p>
+    {% else %}
+        <table border="1" cellpadding="5">
+            <tr>
+                <th>Timestamp</th>
+                <th>Month</th>
+                <th>Date</th>
+                <th>Day</th>
+                <th>Shift Period</th>
+                <th>Level</th>
+                <th>Status</th>
+                <th>Admin Decision</th>
+                <th>Admin Remarks</th>
+            </tr>
+
+            {% for app in applications %}
+            <tr>
+                <td>{{ app.timestamp }}</td>
+                <td>{{ app.month }}</td>
+                <td>{{ app.date }}</td>
+                <td>{{ app.day }}</td>
+                <td>{{ app.shiftPeriod }}</td>
+                <td>{{ app.shiftLevel }}</td>
+                <td>{{ app.status }}</td>
+                <td>{{ app.adminDecision }}</td>
+                <td>{{ app.adminRemarks }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% endif %}
+
+    <br>
+    <a href="/student/home">Back to Student Home</a>
+</body>
+</html>

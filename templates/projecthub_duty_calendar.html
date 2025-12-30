@@ -1,103 +1,124 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ProjectHub Duty Calendar</title>
+    <style>
+        table {border-collapse: collapse; width: 100%;}
+        th, td {border: 1px solid #ccc; padding: 10px; vertical-align: top; height: 100px;}
+        th {background-color: #f2f2f2;}
+        td.other-month {background-color: #f9f9f9; color: #999;}
 
-{% block title %}E2ProjectHub – Student Coach On-duty Schedule{% endblock %}
+        /* Shift type colors */
+        .morning {background-color: #DFF2BF; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
+        .afternoon {background-color: #FEEFB3; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
+        .night {background-color: #FFBABA; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
 
-{% block content %}
+        /* Tooltip styling */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
 
-<div class="max-w-5xl mx-auto bg-white p-6 rounded shadow">
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: max-content;
+            max-width: 200px;
+            background-color: #555;
+            color: #fff;
+            text-align: left;
+            border-radius: 5px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+        }
 
-    <h2 class="text-center text-2xl font-bold mb-2">
-        E2ProjectHub Student Coach On-duty Schedule
-    </h2>
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
 
-    <p class="text-center text-sm text-gray-500 mb-6">
-        {{ month_name }} {{ year }} · Read-only
-    </p>
+        /* Legend styling */
+        .legend {
+            margin-top: 20px;
+        }
 
-    <table class="w-full table-fixed border-collapse">
-        <thead>
-            <tr class="bg-gray-200">
-                <th class="p-2">Mon</th>
-                <th class="p-2">Tue</th>
-                <th class="p-2">Wed</th>
-                <th class="p-2">Thu</th>
-                <th class="p-2">Fri</th>
-                <th class="p-2">Sat</th>
-                <th class="p-2">Sun</th>
-            </tr>
-        </thead>
+        .legend-item {
+            display: inline-block;
+            margin-right: 20px;
+        }
 
-        <tbody>
-        {% for week in cal %}
-            <tr>
+        .legend-color {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            vertical-align: middle;
+            margin-right: 5px;
+            border: 1px solid #000;
+        }
+
+        .morning-legend {background-color: #DFF2BF;}
+        .afternoon-legend {background-color: #FEEFB3;}
+        .night-legend {background-color: #FFBABA;}
+    </style>
+</head>
+<body>
+    <h2>ProjectHub Duty Calendar - {{ year }} / {{ month }}</h2>
+
+    <div>
+        <a href="{{ url_for('projecthub_duty_calendar', month=month-1 if month>1 else 12, year=year-1 if month==1 else year) }}">Previous Month</a> |
+        <a href="{{ url_for('projecthub_duty_calendar') }}">Current Month</a> |
+        <a href="{{ url_for('projecthub_duty_calendar', month=month+1 if month<12 else 1, year=year+1 if month==12 else year) }}">Next Month</a>
+    </div>
+
+    <table>
+        <tr>
+            <th>Mon</th>
+            <th>Tue</th>
+            <th>Wed</th>
+            <th>Thu</th>
+            <th>Fri</th>
+            <th>Sat</th>
+            <th>Sun</th>
+        </tr>
+
+        {% for week in month_days %}
+        <tr>
             {% for day in week %}
-                {% if day == 0 %}
-                    <td class="border p-4 bg-gray-50"></td>
-                {% else %}
-                    {% set date_str = year ~ '-' ~ '%02d'|format(month) ~ '-' ~ '%02d'|format(day) %}
-
-                    <td class="border p-3 align-top text-sm">
-                        <div class="font-semibold mb-2">{{ day }}</div>
-
-                        <div class="space-y-2">
-                        {% for shift in ["Morning", "Afternoon", "Night"] %}
-                            <div class="text-xs font-semibold text-gray-600">
-                                {{ shift }}
-                            </div>
-
-                            {% set ns = namespace(has_booking=false) %}
-
-                            {% for level in levels %}
-                                {% for slot in [1, 2] %}
-                                    {% set key = (date_str, shift, level, slot) %}
-                                    {% if key in approved_bookings %}
-                                        <div class="bg-green-100 px-2 py-1 rounded mb-1">
-                                            {{ level }} — <span class="font-semibold">{{ approved_bookings[key] }}</span>
-                                        </div>
-                                    {% endif %}
-                                {% endfor %}
-                            {% endfor %}
-
-                            {% if not ns.has_booking %}
-                                <div class="text-gray-400 italic text-xs mb-1">
-                                    No student coach
-                                </div>
-                            {% endif %}
-                        {% endfor %}
+            <td class="{% if day.month != month %}other-month{% endif %}">
+                <strong>{{ day.day }}</strong><br>
+                {% set day_str = day.strftime("%Y-%m-%d") %}
+                {% if day_str in shifts_per_date %}
+                    {% for s in shifts_per_date[day_str] %}
+                        <div class="tooltip {{ s.shiftPeriod }}">
+                            {{ s.name }}
+                            <span class="tooltiptext">
+                                Shift: {{ s.shiftPeriod|capitalize }}<br>
+                                Level: {{ s.shiftLevel }}
+                            </span>
                         </div>
-                    </td>
+                    {% endfor %}
                 {% endif %}
+            </td>
             {% endfor %}
-            </tr>
+        </tr>
         {% endfor %}
-        </tbody>
-
-        <div class="flex justify-between items-center mb-4">
-
-            {% set prev_year = year if month > 1 else year - 1 %}
-            {% set prev_month = month - 1 if month > 1 else 12 %}
-
-            {% set next_year = year if month < 12 else year + 1 %}
-            {% set next_month = month + 1 if month < 12 else 1 %}
-
-            <a href="?year={{ prev_year }}&month={{ prev_month }}"
-            class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">
-                ◀ Previous
-            </a>
-
-            <span class="font-semibold">
-                {{ month_name }} {{ year }}
-            </span>
-
-            <a href="?year={{ next_year }}&month={{ next_month }}"
-            class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">
-                Next ▶
-            </a>
-
-        </div>
-
     </table>
 
-</div>
+    <!-- Legend -->
+    <div class="legend">
+        <strong>Legend:</strong>
+        <div class="legend-item"><span class="legend-color morning-legend"></span> Morning</div>
+        <div class="legend-item"><span class="legend-color afternoon-legend"></span> Afternoon</div>
+        <div class="legend-item"><span class="legend-color night-legend"></span> Night</div>
+    </div>
 
-{% endblock %}
+    <br>
+    <a href="/">Back to Home</a>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Attendance</title>
+</head>
+<body>
+    <h2>Clock In / Clock Out</h2>
+
+    {% if success %}
+        <p style="color:green;">{{ success }}</p>
+    {% endif %}
+
+    <form method="POST">
+        <label>Date (YYYY-MM-DD):</label><br>
+        <input type="date" name="date" required><br><br>
+
+        <label>Shift Period:</label><br>
+        <select name="shiftPeriod" required>
+            <option value="morning">Morning</option>
+            <option value="afternoon">Afternoon</option>
+            <option value="night">Night</option>
+        </select><br><br>
+
+        <label>Shift Level:</label><br>
+        <input type="text" name="shiftLevel" placeholder="L1 / L2 ..." required><br><br>
+
+        <label>Remarks (optional):</label><br>
+        <input type="text" name="remarks"><br><br>
+
+        <button type="submit">Record Attendance</button>
+    </form>
+
+    <h3>My Records</h3>
+    <table border="1" cellpadding="5">
+        <tr>
+            <th>Date</th>
+            <th>Shift</th>
+            <th>Clock In</th>
+            <th>Clock Out</th>
+            <th>Remarks</th>
+        </tr>
+        {% for r in records %}
+        {% if r.ID == user.id %}
+        <tr>
+            <td>{{ r.date }}</td>
+            <td>{{ r.shiftPeriod }}</td>
+            <td>{{ r.clockIn }}</td>
+            <td>{{ r.clockOut }}</td>
+            <td>{{ r.remarks }}</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </table>
+
+    <br>
+    <a href="/student/home">Back to Student Home</a>
+</body>
+</html>

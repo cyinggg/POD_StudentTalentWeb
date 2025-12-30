@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Slot Control</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_slot_control.css') }}">
+</head>
+<body>
+
+<h1>Admin Slot Control</h1>
+
+<form method="get"
+      style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
+
+    <label>
+        Year:
+        <input type="number" name="year" value="{{ year }}">
+    </label>
+
+    <label>
+        Month:
+        <input type="number" name="month" value="{{ month }}">
+    </label>
+
+    <label>
+        View:
+        <select name="view">
+            <option value="table" {% if view=="table" %}selected{% endif %}>Table</option>
+            <option value="calendar" {% if view=="calendar" %}selected{% endif %}>Calendar</option>
+        </select>
+    </label>
+
+    <button type="submit" class="btn">Reload</button>
+
+    <div style="display:flex; gap:10px;">
+        <button type="button" onclick="window.history.back();" class="btn">Back</button>
+        <a href="{{ url_for('admin_home') }}" class="btn">Home</a>
+    </div>
+</form>
+
+<!-- ================= TABLE VIEW ================= -->
+{% if view == "table" %}
+<table class="slot-table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Shift</th>
+            <th>Level</th>
+            <th>Open</th>
+            <th>On Job Train</th>
+            <th>Night Shift</th>
+            <th>Remarks</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for slot in slots %}
+        <tr>
+            <td>{{ slot.date.strftime("%Y-%m-%d") }}</td>
+            <td>{{ slot.shiftPeriod }}</td>
+            <td>{{ slot.shiftLevel }}</td>
+
+            <td>
+                <input type="checkbox"
+                       {% if slot.isOpen == 1 %}checked{% endif %}
+                       onchange="updateSlot(this)"
+                       data-field="isOpen"
+                       data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
+                       data-shift="{{ slot.shiftPeriod }}"
+                       data-level="{{ slot.shiftLevel }}">
+            </td>
+
+            <td>
+                <input type="checkbox"
+                       {% if slot.onjobtrain == 1 %}checked{% endif %}
+                       onchange="updateSlot(this)"
+                       data-field="onjobtrain"
+                       data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
+                       data-shift="{{ slot.shiftPeriod }}"
+                       data-level="{{ slot.shiftLevel }}">
+            </td>
+
+            <td>
+                <input type="checkbox"
+                       {% if slot.nightShift == 1 %}checked{% endif %}
+                       onchange="updateSlot(this)"
+                       data-field="nightShift"
+                       data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
+                       data-shift="{{ slot.shiftPeriod }}"
+                       data-level="{{ slot.shiftLevel }}">
+            </td>
+
+            <td>
+                <input type="text"
+                       value="{{ slot.remarks }}"
+                       onblur="updateSlot(this)"
+                       data-field="remarks"
+                       data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
+                       data-shift="{{ slot.shiftPeriod }}"
+                       data-level="{{ slot.shiftLevel }}">
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<!-- ================= CALENDAR VIEW ================= -->
+{% if view == "calendar" %}
+
+<div class="calendar-grid">
+
+    <!-- Day of Week Header -->
+    <div class="calendar-week header">
+        {% for day_name in ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"] %}
+        <div class="calendar-day-header">{{ day_name }}</div>
+        {% endfor %}
+    </div>
+
+    <!-- Weeks -->
+    {% for week in weeks %}
+    <div class="calendar-week">
+        {% for day in week %}
+        <div class="calendar-day {% if day.date.month != month %}other-month{% endif %} {% if day.date == today %}today{% endif %}">
+            <div class="date">{{ day.date.day }}</div>
+
+            {% for slot in day.shifts %}
+            <div class="slot-admin">
+                <strong>{{ slot.shiftPeriod }} {{ slot.shiftLevel }}</strong>
+
+                <label>
+                    Open
+                    <input type="checkbox"
+                           {% if slot.isOpen == 1 %}checked{% endif %}
+                           onchange="updateSlot(this)"
+                           data-field="isOpen"
+                           data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
+                           data-shift="{{ slot.shiftPeriod }}"
+                           data-level="{{ slot.shiftLevel }}">
+                </label>
+
+                <label>
+                    OJT
+                    <input type="checkbox"
+                           {% if slot.onjobtrain == 1 %}checked{% endif %}
+                           onchange="updateSlot(this)"
+                           data-field="onjobtrain"
+                           data-date="{{ slot.date }}"
+                           data-shift="{{ slot.shiftPeriod }}"
+                           data-level="{{ slot.shiftLevel }}">
+                </label>
+
+                <label>
+                    Night
+                    <input type="checkbox"
+                           {% if slot.nightShift == 1 %}checked{% endif %}
+                           onchange="updateSlot(this)"
+                           data-field="nightShift"
+                           data-date="{{ slot.date }}"
+                           data-shift="{{ slot.shiftPeriod }}"
+                           data-level="{{ slot.shiftLevel }}">
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="{{ url_for('static', filename='js/admin_slot_control.js') }}"></script>
+</body>
+</html>

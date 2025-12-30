@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Shift Verification</title>
+</head>
+<body>
+    <h2>Verify Student Shifts</h2>
+
+    <table border="1" cellpadding="5">
+        <tr>
+            <th>Index</th>
+            <th>Date</th>
+            <th>Shift</th>
+            <th>Student Name</th>
+            <th>Clock In</th>
+            <th>Clock Out</th>
+            <th>Student Coach Name</th>
+            <th>Student Coach In</th>
+            <th>Student Coach Out</th>
+            <th>Staff Signature</th>
+            <th>Staff Remarks</th>
+            <th>Action</th>
+        </tr>
+
+        {% for r in records %}
+        <tr>
+            <form method="POST">
+                <td>{{ loop.index0 }}</td>
+                <td>{{ r.date }}</td>
+                <td>{{ r.shiftPeriod }}</td>
+                <td>{{ r.name }}</td>
+                <td>{{ r.clockIn }}</td>
+                <td>{{ r.clockOut }}</td>
+
+                <td><input type="text" name="studentCoachName" placeholder="Coach Name"></td>
+                <td><input type="text" name="studentCoachIn" placeholder="Coach In"></td>
+                <td><input type="text" name="studentCoachOut" placeholder="Coach Out"></td>
+                <td><input type="text" name="staffSignature" placeholder="Staff Signature"></td>
+                <td><input type="text" name="staffRemarks" placeholder="Remarks"></td>
+                <td>
+                    <input type="hidden" name="index" value="{{ loop.index0 }}">
+                    <button type="submit">Verify</button>
+                </td>
+            </form>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <br>
+    <a href="/admin/home">Back to Admin Home</a>
+</body>
+</html>
