@@ -600,54 +600,65 @@ def student_coach_shift_action():
 
 # Write approved shift to shift_record.xlsx
 def write_shift_record_if_not_exists(application_row):
+    """
+    Writes an approved shift application to shift_record.xlsx if it doesn't already exist.
+    Duplicate check is based on ID + date + shiftperiod.
+    """
+
+    # Load existing shift record
     record_df = load_excel_safe(RECORD_FILE)
 
-    # Canonical columns
+    # Normalize columns to lowercase and strip whitespace
+    record_df.columns = [c.strip().lower() for c in record_df.columns]
+
+    # Define canonical columns
     REQUIRED_COLUMNS = [
-        "indexShiftVerify", "timestamp", "applicationTimestamp",
-        "ID", "name", "month", "date", "day",
-        "shiftPeriod", "shiftLevel",
-        "clockIn", "clockOut", "remarks"
+        "indexshiftverify", "timestamp", "applicationtimestamp",
+        "id", "name", "month", "date", "day",
+        "shiftperiod", "shiftlevel",
+        "clockin", "clockout", "remarks"
     ]
 
-    # Normalize columns
-    record_df.columns = [c.strip() for c in record_df.columns]
+    # Ensure all required columns exist
     for col in REQUIRED_COLUMNS:
         if col not in record_df.columns:
             record_df[col] = ""
 
-    # Ensure types
-    record_df["ID"] = record_df["ID"].astype(str)
+    # Ensure types for comparison
+    record_df["id"] = record_df["id"].astype(str)
     record_df["date"] = pd.to_datetime(record_df["date"], errors="coerce")
-    app_date = pd.to_datetime(application_row["date"], errors="coerce")
+    app_date = pd.to_datetime(application_row.get("date"), errors="coerce")
 
     # Duplicate check
     duplicate = record_df[
-        (record_df["ID"] == str(application_row["id"])) &
+        (record_df["id"] == str(application_row.get("id"))) &
         (record_df["date"] == app_date) &
-        (record_df["shiftperiod"] == application_row["shiftperiod"])
+        (record_df["shiftperiod"] == application_row.get("shiftperiod"))
     ]
-
     if not duplicate.empty:
-        return
+        return  # Already exists, do nothing
 
+    # Prepare new row
     new_row = {
-        "indexShiftVerify": len(record_df) + 1,
+        "indexshiftverify": len(record_df) + 1,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "applicationTimestamp": application_row["timestamp"],
-        "ID": str(application_row["id"]),
-        "name": application_row["name"],
-        "month": application_row["month"],
+        "applicationtimestamp": application_row.get("timestamp_str") or application_row.get("timestamp"),
+        "id": str(application_row.get("id")),
+        "name": application_row.get("name", ""),
+        "month": application_row.get("month", ""),
         "date": app_date,
-        "day": application_row["day"],
-        "shiftPeriod": application_row["shiftperiod"],
-        "shiftLevel": application_row["shiftlevel"],
-        "clockIn": "",
-        "clockOut": "",
+        "day": application_row.get("day", ""),
+        "shiftperiod": application_row.get("shiftperiod", ""),
+        "shiftlevel": application_row.get("shiftlevel", ""),
+        "clockin": "",
+        "clockout": "",
         "remarks": ""
     }
 
+    # Append new row safely
     record_df = pd.concat([record_df, pd.DataFrame([new_row])], ignore_index=True)
+
+    # Save only canonical columns, in correct order
     save_excel_safe(record_df[REQUIRED_COLUMNS], RECORD_FILE)
 
 # Admin shift application page
@@ -854,68 +865,57 @@ def projecthub_duty_calendar():
 # ==========================
 # UPLOAD DOWNLOAD EXCEL
 # ==========================
-# @app.route("/admin/upload", methods=["POST"])
-# def admin_upload():
-#     if session.get("role") != "POD Staff and Administration":
-#         return "Unauthorized", 403
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, get_flashed_messages, send_from_directory
+from werkzeug.utils import secure_filename
 
-#     if 'file' not in request.files:
-#         flash("No file part")
-#         return redirect(url_for("admin_downloads_page"))
+ALLOWED_EXTENSIONS = {"xlsx"}
 
-#     file = request.files['file']
-#     if file.filename == '':
-#         flash("No selected file")
-#         return redirect(url_for("admin_downloads_page"))
+def allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-#     if file and allowed_file(file.filename):
-#         filename = secure_filename(file.filename)
-#         file.save(os.path.join(DATA_DIR, filename))
-#         flash(
-#             f"File '{filename}' uploaded successfully and replaced existing file."
-#         )
-#         return redirect(url_for("admin_downloads_page"))
-#     else:
-#         flash("Invalid file type. Only .xlsx allowed.")
-#         return redirect(url_for("admin_downloads_page"))
+# Route to render page
+@app.route("/admin/manage_excels")
+def admin_manage_excels():
+    excel_files = [
+        "account.xlsx",
+        "slot_control.xlsx",
+        "shift_application.xlsx",
+        "shift_record.xlsx",
+        "shift_verify.xlsx"
+    ]
+    flash_messages = [
+        {"category": category, "message": message}
+        for category, message in get_flashed_messages(with_categories=True)
+    ]
+    return render_template(
+        "admin_manage_excel.html",
+        excel_files=excel_files,
+        flash_messages=flash_messages
+    )
 
+# Upload
+@app.route("/admin/upload_excel", methods=["POST"])
+def admin_upload_excel():
+    file = request.files.get("excel_file")
+    if not file:
+        flash("No file selected", "error")
+        return redirect(url_for("admin_manage_excels"))
 
-# # Admin-only route to download Excel files
-# @app.route("/admin/download/<filename>")
-# def admin_download(filename):
-#     if session.get("role") != "POD Staff and Administration":
-#         return "Unauthorized", 403
+    filename = file.filename
+    save_path = os.path.join(DATA_FOLDER, filename)
+    os.makedirs(DATA_FOLDER, exist_ok=True)
+    file.save(save_path)
+    flash(f"{filename} uploaded successfully", "success")
+    return redirect(url_for("admin_manage_excels"))
 
-#     # Allowed files from your constants
-#     allowed_files = [
-#         os.path.basename(ACCOUNT_FILE),
-#         os.path.basename(APPLICATION_FILE),
-#         os.path.basename(SLOT_FILE),
-#         os.path.basename(RECORD_FILE),
-#         os.path.basename(VERIFY_FILE)
-#     ]
-
-#     if filename not in allowed_files:
-#         return "File not found", 404
-
-#     return send_from_directory(DATA_DIR, filename, as_attachment=True)
-
-
-# # Admin page to list downloadable Excel files
-# @app.route("/admin/downloads")
-# def admin_downloads_page():
-#     if session.get("role") != "POD Staff and Administration":
-#         return redirect(url_for("admin_home"))
-
-#     excel_files = [
-#         os.path.basename(ACCOUNT_FILE),
-#         os.path.basename(APPLICATION_FILE),
-#         os.path.basename(SLOT_FILE),
-#         os.path.basename(RECORD_FILE),
-#         os.path.basename(VERIFY_FILE)
-#     ]
-
-#     return render_template("admin_downloads.html", excel_files=excel_files)
+# Download
+@app.route("/admin/download/<filename>")
+def admin_download_excel(filename):
+    try:
+        return send_from_directory(DATA_FOLDER, filename, as_attachment=True)
+    except FileNotFoundError:
+        flash(f"{filename} not found", "error")
+        return redirect(url_for("admin_manage_excels"))
 
 # ==========================
 # Debug print all routes

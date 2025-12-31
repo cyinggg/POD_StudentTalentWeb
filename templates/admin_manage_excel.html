@@ -1,0 +1,110 @@
+<script src="{{ url_for('static', filename='js/admin_slot_control.js') }}"></script>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Manage Excel Files</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_manage_excel.css') }}">
+    <script src="{{ url_for('static', filename='js/admin_manage_excel.js') }}"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        form, ul {
+            margin-bottom: 20px;
+        }
+        input[type="file"] {
+            margin-right: 10px;
+        }
+        button {
+            padding: 6px 15px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        ul li {
+            margin-bottom: 10px;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            color: #fff;
+            border-radius: 5px;
+            z-index: 9999;
+            display: none;
+        }
+        .toast.success { background-color: green; }
+        .toast.error { background-color: red; }
+    </style>
+</head>
+<body>
+    <h1>Admin: Manage Excel Files</h1>
+
+    <div style="display:flex; gap:10px;">
+        <button type="button" onclick="window.history.back();" class="btn">Back</button>
+        <a href="{{ url_for('admin_home') }}" class="btn">Home</a>
+    </div>
+
+    <!-- Upload Form -->
+    <form method="POST" action="{{ url_for('admin_upload_excel') }}" enctype="multipart/form-data">
+        <label>Upload Excel File:
+            <input type="file" name="excel_file" accept=".xlsx,.xls">
+        </label>
+        <button type="submit">Upload</button>
+    </form>
+
+    <!-- Download Links -->
+    <h2>Download Excel Files</h2>
+    <ul>
+        {% for file in excel_files %}
+            <li>
+                <a href="{{ url_for('admin_download_excel', filename=file) }}" target="_blank">{{ file }}</a>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // Show toast notification
+        function showToast(message, success=true) {
+            const toast = document.getElementById("toast");
+            toast.textContent = message;
+            toast.className = `toast ${success ? 'success' : 'error'}`;
+            toast.style.display = "block";
+            setTimeout(() => { toast.style.display = "none"; }, 3000);
+        }
+
+        // Show Flask flash messages
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                showToast("{{ message }}", "{{ category }}" === "success");
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+    </script>
+
+    <script>
+        window.FLASH_MESSAGES = {{ flash_messages|tojson }};
+    </script>
+
+
+</body>
+</html>

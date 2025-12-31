@@ -3,6 +3,28 @@ document.addEventListener("DOMContentLoaded", function() {
     const modal = new bootstrap.Modal(document.getElementById("remarksModal"));
     const modalInput = document.getElementById("modalRemarksInput");
 
+    // ------------------ NOTIFICATION FUNCTION ------------------
+    function showNotification(message, isSuccess = true) {
+        const box = document.getElementById("notification");
+        const text = document.getElementById("notification-text");
+
+        if (!box || !text) {
+            console.error("Notification elements not found in DOM");
+            alert(message); // fallback
+            return;
+        }
+
+        text.textContent = message;
+        box.classList.remove("hidden");
+        box.classList.toggle("success", isSuccess);
+        box.classList.toggle("error", !isSuccess);
+
+        setTimeout(() => {
+            box.classList.add("hidden");
+        }, 3000);
+    }
+    // ------------------------------------------------------------
+
     // Edit remarks
     document.querySelectorAll(".edit-remarks-btn").forEach(btn => {
         btn.addEventListener("click", function() {
@@ -38,32 +60,31 @@ document.addEventListener("DOMContentLoaded", function() {
             const admindecision = row.querySelector(".decision-select").value;
             const adminremarks = row.querySelector(".admin-remarks-text").textContent;
 
-            fetch(updateUrl, {
-                method: "POST",
-                headers: {"Content-Type": "application/x-www-form-urlencoded"},
-                body: new URLSearchParams({
-                    timestamp: timestamp,
-                    status: status,
-                    admindecision: admindecision,
-                    adminremarks: adminremarks
-                })
-            })
-            .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                showNotification(data.message || "Updated successfully!");
-            } else {
-                showNotification("Error: " + data.error);
-            }
-        })
-        .catch(err => showNotification("Request failed: " + err));
+            // ------------------ FORM DATA ------------------
+            const formData = new URLSearchParams();
+            formData.append("timestamp", timestamp);
+            formData.append("status", status);
+            formData.append("admindecision", admindecision);
+            formData.append("adminremarks", adminremarks);
+            // -----------------------------------------------
 
-        function showNotification(msg) {
-            const toast = document.getElementById("toast");
-            toast.textContent = msg;
-            toast.classList.remove("hidden");
-            setTimeout(() => toast.classList.add("hidden"), 3000);
-        }
+            fetch("/admin/shift_application/update", {
+                method: "POST",
+                body: formData
+            })
+            .then(async response => {
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || "Server error");
+                }
+
+                showNotification(data.message, true);
+            })
+            .catch(error => {
+                console.error(error);
+                showNotification(error.message || "Update failed", false);
+            });
         });
     });
 });
