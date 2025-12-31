@@ -440,10 +440,10 @@ def student_coach_shifts():
                         (app_df["shiftlevel"] == slot["shiftlevel"])
                     ]
                     rec = rec_df[
-                        (rec_df["ID"] == sid) &
+                        (rec_df["id"] == sid) &
                         (rec_df["date"] == d) &
-                        (rec_df["shiftPeriod"] == slot["shiftperiod"]) &
-                        (rec_df["shiftLevel"] == slot["shiftlevel"])
+                        (rec_df["shiftperiod"] == slot["shiftperiod"]) &
+                        (rec_df["shiftlevel"] == slot["shiftlevel"])
                     ]
 
                     if not rec.empty:
@@ -598,140 +598,118 @@ def student_coach_shift_action():
     else:
         return jsonify(success=False, error="Invalid action"), 400
 
-# Admin apporval into shift_record auto write function
+# Write approved shift to shift_record.xlsx
 def write_shift_record_if_not_exists(application_row):
     record_df = load_excel_safe(RECORD_FILE)
 
-    # Check duplicate
+    # Canonical columns
+    REQUIRED_COLUMNS = [
+        "indexShiftVerify", "timestamp", "applicationTimestamp",
+        "ID", "name", "month", "date", "day",
+        "shiftPeriod", "shiftLevel",
+        "clockIn", "clockOut", "remarks"
+    ]
+
+    # Normalize columns
+    record_df.columns = [c.strip() for c in record_df.columns]
+    for col in REQUIRED_COLUMNS:
+        if col not in record_df.columns:
+            record_df[col] = ""
+
+    # Ensure types
+    record_df["ID"] = record_df["ID"].astype(str)
+    record_df["date"] = pd.to_datetime(record_df["date"], errors="coerce")
+    app_date = pd.to_datetime(application_row["date"], errors="coerce")
+
+    # Duplicate check
     duplicate = record_df[
-        (record_df["ID"] == application_row["ID"]) &
-        (record_df["date"] == application_row["date"]) &
-        (record_df["shiftPeriod"] == application_row["shiftPeriod"])
+        (record_df["ID"] == str(application_row["id"])) &
+        (record_df["date"] == app_date) &
+        (record_df["shiftperiod"] == application_row["shiftperiod"])
     ]
 
     if not duplicate.empty:
-        return  # already written, DO NOTHING
-
-    new_index = len(record_df) + 1
+        return
 
     new_row = {
-        "indexShiftVerify": new_index,
+        "indexShiftVerify": len(record_df) + 1,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "ID": application_row["ID"],
+        "applicationTimestamp": application_row["timestamp"],
+        "ID": str(application_row["id"]),
         "name": application_row["name"],
         "month": application_row["month"],
-        "date": application_row["date"],
+        "date": app_date,
         "day": application_row["day"],
-        "shiftPeriod": application_row["shiftPeriod"],
-        "shiftLevel": application_row["shiftLevel"],
+        "shiftPeriod": application_row["shiftperiod"],
+        "shiftLevel": application_row["shiftlevel"],
         "clockIn": "",
         "clockOut": "",
         "remarks": ""
     }
 
     record_df = pd.concat([record_df, pd.DataFrame([new_row])], ignore_index=True)
-    save_excel_safe(record_df, RECORD_FILE)
+    save_excel_safe(record_df[REQUIRED_COLUMNS], RECORD_FILE)
 
-# Admin approval route Flask
-@app.route("/admin/approve_shift", methods=["POST"])
-def approve_shift():
-    row_index = int(request.form["row_index"])
-    decision = request.form["decision"]  # Approved / Rejected
-    remarks = request.form.get("remarks", "").strip()
-
+# Admin shift application page
+@app.route("/admin/shift_application")
+def admin_shift_application():
     app_df = load_excel_safe(APPLICATION_FILE)
+    app_df.columns = [c.strip() for c in app_df.columns]
 
-    # Update application
-    app_df.loc[row_index, "adminDecision"] = decision
-    app_df.loc[row_index, "status"] = decision
-    app_df.loc[row_index, "adminRemarks"] = remarks
+    for col in ["admindecision", "adminremarks", "status"]:
+        if col not in app_df.columns:
+            app_df[col] = ""
 
-    save_excel_safe(app_df, APPLICATION_FILE)
+    app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce")
 
-    # Auto-write ONLY if approved
-    if decision == "Approved":
-        write_shift_record_if_not_exists(app_df.loc[row_index])
+    return render_template(
+        "admin_shift_application.html",
+        application=app_df.to_dict("records"),
+        today=datetime.today().date()
+    )
 
-    return redirect(url_for("admin_home"))
+# Admin shift application approve reject AJAX update
+@app.route("/admin/shift_application/update", methods=["POST"])
+def update_shift_application():
+    try:
+        timestamp = request.form.get("timestamp", "").strip()
+        admindecision = request.form.get("admindecision", "").strip()
+        adminremarks = request.form.get("adminremarks", "").strip()
+        status = request.form.get("status", "").strip()
 
-# Admin review and decision
-# @app.route("/admin/review", methods=["GET", "POST"])
-# def admin_review():
-#     if "user" not in session or session["user"]["role"] != "admin":
-#         return redirect(url_for("admin_login"))
+        if not timestamp:
+            return jsonify(success=False, error="Missing timestamp"), 400
 
-#     df = load_excel_safe(APPLICATION_FILE)
+        app_df = load_excel_safe(APPLICATION_FILE)
+        app_df.columns = [c.strip() for c in app_df.columns]
 
-#     if request.method == "POST":
-#         index = int(request.form["index"])
-#         decision = request.form["adminDecision"]
-#         remarks = request.form["adminRemarks"]
+        # Normalize timestamp_str (original application timestamp)
+        if "timestamp_str" not in app_df.columns:
+            return jsonify(success=False, error="timestamp_str column missing"), 500
 
-#         # Update the application row
-#         if index >= 0 and index < len(df):
-#             df.at[index, "adminDecision"] = decision
-#             df.at[index, "adminRemarks"] = remarks
-#             # Automatically update status
-#             if decision.lower() in ["approved", "excuse in advance", "excuse with valid reason"]:
-#                 df.at[index, "status"] = "Approved"
-#             elif decision.lower() in ["rejected", "cannot make it"]:
-#                 df.at[index, "status"] = "Rejected"
+        app_df["timestamp_str"] = app_df["timestamp_str"].astype(str).str.strip()
+        mask = app_df["timestamp_str"] == timestamp
 
-#             # Save applications
-#             save_excel_safe(df, APPLICATION_FILE)
+        if not mask.any():
+            return jsonify(success=False, error="Application not found"), 404
+        
+        # Update admin fields
+        app_df.loc[mask, ["admindecision", "adminremarks", "status"]] = [
+            admindecision, adminremarks, status
+        ]
+        app_df.loc[mask, "adminUpdateTimestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-#             # Recalculate approved counts live
-#             update_approved_counts()
+        save_excel_safe(app_df, APPLICATION_FILE)
 
-#         return redirect(url_for("admin_review"))
+        # Write approved shifts to record
+        if admindecision.lower() == "approved":
+            write_shift_record_if_not_exists(app_df.loc[mask].iloc[0].to_dict())
 
-#     # GET request — show all pending or recently applied shifts
-#     df = df.fillna("")  # avoid NaN display
-#     applications = df.to_dict(orient="records")
+        return jsonify(success=True, message=f"Application {admindecision} successfully")
 
-#     return render_template("admin_review.html", applications=applications)
-
-# Student coach application
-@app.route("/student/my_applications")
-def student_my_applications():
-    if "user" not in session or session["user"]["role"] != "student":
-        return redirect(url_for("student_login"))
-
-    user = session["user"]
-    df = load_excel_safe(APPLICATION_FILE)
-    df = df.fillna("")  # replace NaN with empty string for display
-
-    # Filter applications by logged-in student
-    student_apps = df[df["ID"].astype(str) == str(user["id"])].to_dict(orient="records")
-
-    return render_template("student_my_applications.html", applications=student_apps)
-
-# Count shifts helper
-def count_student_shifts(user_id, df, target_date):
-    """
-    Returns weekly_count, monthly_count for a given student and date.
-    Only counts Approved or Pending applications.
-    """
-    # Filter student
-    student_df = df[df["ID"].astype(str) == str(user_id)]
-
-    # Only consider Approved or Pending
-    student_df = student_df[student_df["status"].isin(["Pending", "Approved"])]
-
-    # Monthly count
-    month_str = target_date.strftime("%Y-%m")
-    monthly_count = student_df[student_df["month"] == month_str].shape[0]
-
-    # Weekly count (Monday-Sunday)
-    target_week_start = target_date - timedelta(days=target_date.weekday())
-    target_week_end = target_week_start + timedelta(days=6)
-
-    weekly_count = student_df[
-        (pd.to_datetime(student_df["date"]) >= target_week_start) &
-        (pd.to_datetime(student_df["date"]) <= target_week_end)
-    ].shape[0]
-
-    return weekly_count, monthly_count
+    except Exception as e:
+        print("update_shift_application ERROR:", e)
+        return jsonify(success=False, error=str(e)), 500
 
 # Student coach clockIn clockOut
 @app.route("/student/attendance", methods=["GET", "POST"])
@@ -804,7 +782,7 @@ def admin_verify():
             new_row = {
                 "indexShiftRecord": index+1,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "ID": shift["ID"],
+                "ID": shift["id"],
                 "name": shift["name"],
                 "month": shift["month"],
                 "date": shift["date"],
@@ -828,11 +806,11 @@ def admin_verify():
 # Projecthub duty calendar
 @app.route("/projecthub_duty_calendar")
 def projecthub_duty_calendar():
-    # Load shift applications
+    # Load shift application
     df = load_excel_safe(APPLICATION_FILE)
 
     # Only show approved shifts
-    df = df[df["adminDecision"] == "Approved"]
+    df = df[df["admindecision"] == "Approved"]
 
     # Convert date column to datetime
     df["date"] = pd.to_datetime(df["date"])
@@ -861,8 +839,8 @@ def projecthub_duty_calendar():
             shifts_per_date[day_str] = []
         shifts_per_date[day_str].append({
             "name": row["name"],
-            "shiftPeriod": row["shiftPeriod"],  # morning / afternoon / night
-            "shiftLevel": row["shiftLevel"]
+            "shiftperiod": row["shiftperiod"],  # morning / afternoon / night
+            "shiftlevel": row["shiftlevel"]
         })
 
     return render_template(
@@ -873,26 +851,77 @@ def projecthub_duty_calendar():
         shifts_per_date=shifts_per_date
     )
 
-# Update approvedShift counts in slot_control.xlsx from shift_application.xlsx
-def update_approved_counts():
-    if not os.path.exists(SLOT_FILE) or not os.path.exists(APPLICATION_FILE):
-        return
+# ==========================
+# UPLOAD DOWNLOAD EXCEL
+# ==========================
+# @app.route("/admin/upload", methods=["POST"])
+# def admin_upload():
+#     if session.get("role") != "POD Staff and Administration":
+#         return "Unauthorized", 403
 
-    df_slot = load_excel_safe(SLOT_FILE)
-    df_app = load_excel_safe(APPLICATION_FILE).fillna("")
+#     if 'file' not in request.files:
+#         flash("No file part")
+#         return redirect(url_for("admin_downloads_page"))
 
-    df_app = df_app[df_app["adminDecision"].str.lower() == "approved"]
+#     file = request.files['file']
+#     if file.filename == '':
+#         flash("No selected file")
+#         return redirect(url_for("admin_downloads_page"))
 
-    for idx, row in df_slot.iterrows():
-        count = df_app[
-            (df_app["date"] == row["date"]) &
-            (df_app["shiftPeriod"] == row["shiftPeriod"]) &
-            (df_app["shiftLevel"] == row["shiftLevel"])
-        ].shape[0]
+#     if file and allowed_file(file.filename):
+#         filename = secure_filename(file.filename)
+#         file.save(os.path.join(DATA_DIR, filename))
+#         flash(
+#             f"File '{filename}' uploaded successfully and replaced existing file."
+#         )
+#         return redirect(url_for("admin_downloads_page"))
+#     else:
+#         flash("Invalid file type. Only .xlsx allowed.")
+#         return redirect(url_for("admin_downloads_page"))
 
-        df_slot.at[idx, "approvedShift"] = count
 
-    save_excel_safe(df_slot, SLOT_FILE)
+# # Admin-only route to download Excel files
+# @app.route("/admin/download/<filename>")
+# def admin_download(filename):
+#     if session.get("role") != "POD Staff and Administration":
+#         return "Unauthorized", 403
+
+#     # Allowed files from your constants
+#     allowed_files = [
+#         os.path.basename(ACCOUNT_FILE),
+#         os.path.basename(APPLICATION_FILE),
+#         os.path.basename(SLOT_FILE),
+#         os.path.basename(RECORD_FILE),
+#         os.path.basename(VERIFY_FILE)
+#     ]
+
+#     if filename not in allowed_files:
+#         return "File not found", 404
+
+#     return send_from_directory(DATA_DIR, filename, as_attachment=True)
+
+
+# # Admin page to list downloadable Excel files
+# @app.route("/admin/downloads")
+# def admin_downloads_page():
+#     if session.get("role") != "POD Staff and Administration":
+#         return redirect(url_for("admin_home"))
+
+#     excel_files = [
+#         os.path.basename(ACCOUNT_FILE),
+#         os.path.basename(APPLICATION_FILE),
+#         os.path.basename(SLOT_FILE),
+#         os.path.basename(RECORD_FILE),
+#         os.path.basename(VERIFY_FILE)
+#     ]
+
+#     return render_template("admin_downloads.html", excel_files=excel_files)
+
+# ==========================
+# Debug print all routes
+# ==========================
+for rule in app.url_map.iter_rules():
+    print(rule)
 
 # ==========================
 # Flask app for Replit
