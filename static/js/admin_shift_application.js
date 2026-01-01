@@ -27,13 +27,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
         text.textContent = message;
         box.classList.remove("hidden");
-        if (isSuccess) {
-            box.classList.add("success");
-            box.classList.remove("error");
-        } else {
-            box.classList.add("error");
-            box.classList.remove("success");
-        }
+        box.classList.toggle("success", isSuccess);
+        box.classList.toggle("error", !isSuccess);
 
         setTimeout(() => box.classList.add("hidden"), 3000);
     }
@@ -42,15 +37,15 @@ document.addEventListener("DOMContentLoaded", function() {
     btnTableView.addEventListener("click", () => {
         tableContainer.style.display = "block";
         calendarContainer.style.display = "none";
-        btnTableView.classList.add("btn-primary"); btnTableView.classList.remove("btn-secondary");
-        btnCalendarView.classList.add("btn-secondary"); btnCalendarView.classList.remove("btn-primary");
+        btnTableView.classList.replace("btn-secondary", "btn-primary");
+        btnCalendarView.classList.replace("btn-primary", "btn-secondary");
     });
 
     btnCalendarView.addEventListener("click", () => {
         tableContainer.style.display = "none";
         calendarContainer.style.display = "block";
-        btnCalendarView.classList.add("btn-primary"); btnCalendarView.classList.remove("btn-secondary");
-        btnTableView.classList.add("btn-secondary"); btnTableView.classList.remove("btn-primary");
+        btnCalendarView.classList.replace("btn-secondary", "btn-primary");
+        btnTableView.classList.replace("btn-primary", "btn-secondary");
     });
 
     // ------------------ Table Inline Editing ------------------
@@ -93,7 +88,10 @@ document.addEventListener("DOMContentLoaded", function() {
             formData.append("admindecision", admindecision);
             formData.append("adminremarks", adminremarks);
 
-            fetch("/admin/shift_application/update", { method: "POST", body: formData })
+            fetch("/admin/shift_application/update", {
+                method: "POST",
+                body: formData
+            })
             .then(async res => {
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "Server error");
@@ -113,7 +111,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
             const admindecision = select.value;
             const adminremarks = textarea.value;
-            const status = admindecision; // optional, same logic as table
+
+            const status = admindecision; // optional: same as table logic
 
             const formData = new URLSearchParams();
             formData.append("key", key);
@@ -121,7 +120,10 @@ document.addEventListener("DOMContentLoaded", function() {
             formData.append("admindecision", admindecision);
             formData.append("adminremarks", adminremarks);
 
-            fetch("/admin/shift_application/update", { method: "POST", body: formData })
+            fetch("/admin/shift_application/update", {
+                method: "POST",
+                body: formData
+            })
             .then(async res => {
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "Server error");
@@ -145,7 +147,7 @@ document.addEventListener("DOMContentLoaded", function() {
             if (text) {
                 const id = row.dataset.id || "";
                 const name = row.dataset.name || "";
-                visible = visible && (id.includes(text) || name.includes(text));
+                visible &= id.includes(text) || name.includes(text);
             }
 
             if (filterDate.value && row.dataset.date !== filterDate.value) visible = false;
@@ -161,8 +163,8 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     [
-        filterText, filterStatus, filterDecision,
-        filterOJT, filterNight, filterDate,
-        filterShift, filterLevel
+      filterText, filterStatus, filterDecision,
+      filterOJT, filterNight, filterDate,
+      filterShift, filterLevel
     ].forEach(el => el.addEventListener("input", applyFilters));
 });

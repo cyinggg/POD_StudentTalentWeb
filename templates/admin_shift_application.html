@@ -56,63 +56,66 @@
         <button id="btnCalendarView" class="btn btn-secondary">Calendar View</button>
     </div>
 
+    <!-- Month Navigation -->
+    <div class="mb-3">
+        <a href="{{ url_for('admin_shift_application', month=month-1 if month>1 else 12, year=year-1 if month==1 else year) }}" class="btn btn-sm btn-outline-primary">&laquo; Previous Month</a>
+        <span class="mx-2">{{ year }} - {{ "%02d"|format(month) }}</span>
+        <a href="{{ url_for('admin_shift_application', month=month+1 if month<12 else 1, year=year+1 if month==12 else year) }}" class="btn btn-sm btn-outline-primary">Next Month &raquo;</a>
+    </div>
+
     <!-- ---------------- TABLE VIEW ---------------- -->
     <div id="tableContainer">
+        <!-- Filters -->
         <div class="row mb-3 g-2">
-          <div class="col">
-            <input type="text" id="filterText" class="form-control form-control-sm"
-                  placeholder="Search ID / Name">
-          </div>
-          <div class="col">
-            <input type="date" id="filterDate" class="form-control form-control-sm">
-          </div>
-          <div class="col">
-            <select id="filterShift" class="form-select form-select-sm">
-              <option value="">All Shifts</option>
-              <option value="morning">Morning</option>
-              <option value="afternoon">Afternoon</option>
-              <option value="night">Night</option>
-            </select>
-          </div>
-          <div class="col">
-            <select id="filterLevel" class="form-select form-select-sm">
-              <option value="">All Levels</option>
-              <option value="l3">L3</option>
-              <option value="l4">L4</option>
-              <option value="l6">L6</option>
-            </select>
-          </div>
-          <div class="col">
-            <select id="filterStatus" class="form-select form-select-sm">
-              <option value="">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-            </select>
-          </div>
-          <div class="col">
-            <select id="filterDecision" class="form-select form-select-sm">
-              <option value="">All Decisions</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="pending">Pending</option>
-              <option value="cancel">Cancel</option>
-            </select>
-          </div>
-          <div class="col">
-            <select id="filterOJT" class="form-select form-select-sm">
-              <option value="">OJT All</option>
-              <option value="1">OJT</option>
-              <option value="0">Non-OJT</option>
-            </select>
-          </div>
-          <div class="col">
-            <select id="filterNight" class="form-select form-select-sm">
-              <option value="">Night All</option>
-              <option value="1">Night Eligible</option>
-              <option value="0">No Night</option>
-            </select>
-          </div>
+            <div class="col"><input type="text" id="filterText" class="form-control form-control-sm" placeholder="Search ID / Name"></div>
+            <div class="col"><input type="date" id="filterDate" class="form-control form-control-sm"></div>
+            <div class="col">
+                <select id="filterShift" class="form-select form-select-sm">
+                    <option value="">All Shifts</option>
+                    <option value="morning">Morning</option>
+                    <option value="afternoon">Afternoon</option>
+                    <option value="night">Night</option>
+                </select>
+            </div>
+            <div class="col">
+                <select id="filterLevel" class="form-select form-select-sm">
+                    <option value="">All Levels</option>
+                    <option value="l3">L3</option>
+                    <option value="l4">L4</option>
+                    <option value="l6">L6</option>
+                </select>
+            </div>
+            <div class="col">
+                <select id="filterStatus" class="form-select form-select-sm">
+                    <option value="">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+            </div>
+            <div class="col">
+                <select id="filterDecision" class="form-select form-select-sm">
+                    <option value="">All Decisions</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="pending">Pending</option>
+                    <option value="cancel">Cancel</option>
+                </select>
+            </div>
+            <div class="col">
+                <select id="filterOJT" class="form-select form-select-sm">
+                    <option value="">OJT All</option>
+                    <option value="1">OJT</option>
+                    <option value="0">Non-OJT</option>
+                </select>
+            </div>
+            <div class="col">
+                <select id="filterNight" class="form-select form-select-sm">
+                    <option value="">Night All</option>
+                    <option value="1">Night Eligible</option>
+                    <option value="0">No Night</option>
+                </select>
+            </div>
         </div>
 
         <table class="table table-bordered table-hover" id="applicationTable">
@@ -159,7 +162,7 @@
                     <td>{{ app['totalPendingShift'] }}</td>
                     <td>{{ app['name'] }}</td>
                     <td>{{ app['date'].strftime('%Y-%m-%d') }}</td>
-                    <td>{{ app['day'] }}</td>
+                    <td>{{ app['date'].strftime('%A') }}</td>
                     <td>{{ app['shiftPeriod'] or app['shiftperiod'] }}</td>
                     <td>{{ app['shiftLevel'] or app['shiftlevel'] }}</td>
                     <td><span class="badge status-badge {{ app['status'] | lower }}">{{ app['status'] }}</span></td>
@@ -187,34 +190,50 @@
     <!-- ---------------- CALENDAR VIEW ---------------- -->
     <div id="calendarContainer" style="display:none;">
         <div class="calendar" id="calendarGrid">
-            {% for day in range(1, 32) %}
-                {% set date = '2026-01-' ~ "%02d"|format(day) %}
-                <div class="day" data-date="{{ date }}">
-                    <div class="date-number">{{ "%02d"|format(day) }}</div>
-                    {% for app in calendar_data.get(date, []) %}
-                        <div class="shift-badge shift-{{ app['shift'] | lower }}">
-                            {{ app['name'] }} - {{ app['shift'] }} ({{ app['level'] }})
-                            {% if app['onjobtrain'] %}<span class="badge-ojt">OJT</span>{% endif %}
-                            {% if app['nightShift'] %}<span class="badge-night">Night</span>{% endif %}
-                            <br>
-                            <select class="form-select form-select-sm decision-select-inline mt-1">
-                                <option value="" {% if not app['admindecision'] %}selected{% endif %}></option>
-                                <option value="approved" {% if app['admindecision']=='approved' %}selected{% endif %}>Approved</option>
-                                <option value="rejected" {% if app['admindecision']=='rejected' %}selected{% endif %}>Rejected</option>
-                                <option value="pending" {% if app['admindecision']=='pending' %}selected{% endif %}>Pending</option>
-                                <option value="cancel" {% if app['admindecision']=='cancel' %}selected{% endif %}>Cancel</option>
-                            </select>
-                            <textarea class="form-control form-control-sm mt-1 remarks-input-inline">{{ app['adminremarks'] }}</textarea>
-                            <button class="btn btn-sm btn-primary save-btn-inline mt-1"
-                                    data-key="{{ app['id'] }}_{{ date }}_{{ app['shift'] }}_{{ app['level'] }}">
-                                Save
-                            </button>
+
+            {# Weekday headers #}
+            {% for wd in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}
+                <div class="day"><strong>{{ wd }}</strong></div>
+            {% endfor %}
+
+            {# Calendar generation #}
+            {# Use month_days passed from Flask route #}
+            {% for week in month_days %}
+                {% for day in week %}
+                    {% if day %}
+                        {% set date_str = day.strftime('%Y-%m-%d') %}
+                        <div class="day" data-date="{{ date_str }}">
+                            <div class="date-number">{{ day.day }}</div>
+                            {% for app in calendar_data.get(date_str, []) %}
+                                <div class="shift-badge shift-{{ app['shift'] | lower }}">
+                                    {{ app['name'] }} - {{ app['shift'] }} ({{ app['level'] }})
+                                    {% if app['onjobtrain'] %}<span class="badge-ojt">OJT</span>{% endif %}
+                                    {% if app['nightShift'] %}<span class="badge-night">Night</span>{% endif %}
+                                    <br>
+                                    <select class="form-select form-select-sm decision-select-inline mt-1">
+                                        <option value="" {% if not app['admindecision'] %}selected{% endif %}></option>
+                                        <option value="approved" {% if app['admindecision']=='approved' %}selected{% endif %}>Approved</option>
+                                        <option value="rejected" {% if app['admindecision']=='rejected' %}selected{% endif %}>Rejected</option>
+                                        <option value="pending" {% if app['admindecision']=='pending' %}selected{% endif %}>Pending</option>
+                                        <option value="cancel" {% if app['admindecision']=='cancel' %}selected{% endif %}>Cancel</option>
+                                    </select>
+                                    <textarea class="form-control form-control-sm mt-1 remarks-input-inline">{{ app['adminremarks'] }}</textarea>
+                                    <button class="btn btn-sm btn-primary save-btn-inline mt-1"
+                                            data-key="{{ app['id'] }}_{{ date_str }}_{{ app['shift'] }}_{{ app['level'] }}">
+                                        Save
+                                    </button>
+                                </div>
+                            {% endfor %}
                         </div>
-                    {% endfor %}
-                </div>
+                    {% else %}
+                        <div class="day"></div>
+                    {% endif %}
+                {% endfor %}
             {% endfor %}
         </div>
     </div>
+
+</div>
 
 <!-- Modal for table remarks -->
 <div class="modal fade" id="remarksModal" tabindex="-1" aria-labelledby="remarksModalLabel" aria-hidden="true">

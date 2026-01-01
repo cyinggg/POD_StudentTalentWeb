@@ -686,15 +686,30 @@ def admin_shift_application():
     # --- Load application data ---
     app_df = load_excel_safe(APPLICATION_FILE)
 
+    # --- Get current month/year or from query params ---
+    today = datetime.today()
+    month = request.args.get("month", default=today.month, type=int)
+    year = request.args.get("year", default=today.year, type=int)
+
+    # --- Prepare month_days for calendar view (Monday-first) ---
+    cal = calendar.Calendar(firstweekday=0)  # Monday=0 in Python
+    month_days = []
+    for week in cal.monthdatescalendar(year, month):
+        month_days.append(week)
+
+    # --- If application data is empty, return template safely ---
     if app_df.empty:
         return render_template(
             "admin_shift_application.html",
             application=[],
             calendar_data={},
-            today=datetime.today().date()
+            today=today.date(),
+            month=month,
+            year=year,
+            month_days=month_days
         )
 
-    # Normalize columns
+    # --- Normalize columns ---
     app_df.columns = app_df.columns.str.strip()
     app_df["id"] = app_df["id"].astype(str)
 
@@ -754,7 +769,13 @@ def admin_shift_application():
         "admin_shift_application.html",
         application=app_df.to_dict("records"),
         calendar_data=calendar_data,
-        today=datetime.today().date()
+        today=today.date(),
+        month=month,
+        year=year,
+        month_days=month_days,
+        # today=datetime.today().date(),
+        datetime=datetime,       # pass datetime to template
+        timedelta=timedelta      # pass timedelta to template
     )
 
 # Admin shift application approve reject AJAX update
