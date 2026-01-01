@@ -19,11 +19,80 @@
 
 <div class="container my-4">
     <h2 class="mb-4">Admin Shift Application</h2>
+
+    <div class="row mb-3 g-2">
+      <div class="col">
+        <input type="text" id="filterText" class="form-control form-control-sm"
+              placeholder="Search ID / Name">
+      </div>
+
+      <div class="col">
+        <input type="date" id="filterDate" class="form-control form-control-sm">
+      </div>
+
+      <div class="col">
+        <select id="filterShift" class="form-select form-select-sm">
+          <option value="">All Shifts</option>
+          <option value="morning">Morning</option>
+          <option value="afternoon">Afternoon</option>
+          <option value="night">Night</option>
+        </select>
+      </div>
+
+      <div class="col">
+        <select id="filterLevel" class="form-select form-select-sm">
+          <option value="">All Levels</option>
+          <option value="l3">L3</option>
+          <option value="l4">L4</option>
+          <option value="l6">L6</option>
+        </select>
+      </div>
+
+      <div class="col">
+        <select id="filterStatus" class="form-select form-select-sm">
+          <option value="">All Status</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+
+      <div class="col">
+        <select id="filterDecision" class="form-select form-select-sm">
+          <option value="">All Decisions</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="pending">Pending</option>
+          <option value="cancel">Cancel</option>
+        </select>
+      </div>
+
+      <div class="col">
+        <select id="filterOJT" class="form-select form-select-sm">
+          <option value="">OJT All</option>
+          <option value="1">OJT</option>
+          <option value="0">Non-OJT</option>
+        </select>
+      </div>
+
+      <div class="col">
+        <select id="filterNight" class="form-select form-select-sm">
+          <option value="">Night All</option>
+          <option value="1">Night Eligible</option>
+          <option value="0">No Night</option>
+        </select>
+      </div>
+    </div>
+
     <table class="table table-bordered table-hover" id="applicationTable">
         <thead class="table-dark">
             <tr>
                 <th>Timestamp</th>
                 <th>ID</th>
+                <th>OJT</th>
+                <th>Night</th>
+                <th>Approved</th>
+                <th>Pending</th>
                 <th>Name</th>
                 <th>Date</th>
                 <th>Day</th>
@@ -38,9 +107,25 @@
         </thead>
         <tbody>
             {% for app in application %}
-            <tr data-timestamp="{{ app['timestamp_str'] }}">
+            <tr
+              data-timestamp="{{ app['timestamp_str'] }}"
+              data-key="{{ (app['id'] ~ '_' ~ app['date'].strftime('%Y-%m-%d') ~ '_' ~ (app['shiftPeriod'] or app['shiftperiod'])|lower ~ '_' ~ (app['shiftLevel'] or app['shiftlevel'])|lower) }}"
+              data-id="{{ app['id'] }}"
+              data-name="{{ app['name'] | lower }}"
+              data-date="{{ app['date'].strftime('%Y-%m-%d') }}"
+              data-shift="{{ (app['shiftPeriod'] or app['shiftperiod']) | lower }}"
+              data-level="{{ (app['shiftLevel'] or app['shiftlevel']) | lower }}"
+              data-status="{{ app['status'] | lower }}"
+              data-decision="{{ app['admindecision'] | lower }}"
+              data-ojt="{{ app['onjobtrain'] }}"
+              data-night="{{ app['nightShift'] }}"
+            >
                 <td>{{ app['timestamp_str'] }}</td>
                 <td>{{ app['ID'] or app['id'] }}</td>
+                <td>{{ app['onjobtrain'] }}</td>
+                <td>{{ app['nightShift'] }}</td>
+                <td>{{ app['totalApprovedShift'] }}</td>
+                <td>{{ app['totalPendingShift'] }}</td>
                 <td>{{ app['name'] }}</td>
                 <td>{{ app['date'].strftime('%Y-%m-%d') }}</td>
                 <td>{{ app['day'] }}</td>

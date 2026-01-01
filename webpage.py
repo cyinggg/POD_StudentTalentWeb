@@ -36,6 +36,25 @@ def save_excel_safe(df, filepath):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     df.to_excel(filepath, index=False)
 
+# Normalize account.xlsx
+def normalize_account_df(df):
+    if df.empty:
+        return df
+
+    df.columns = df.columns.str.strip()
+
+    required_cols = [
+        "ID", "onjobtrain", "nightShift",
+        "totalApprovedShift", "totalPendingShift"
+    ]
+
+    for col in required_cols:
+        if col not in df.columns:
+            df[col] = 0
+
+    df["ID"] = df["ID"].astype(str)
+    return df
+
 # Home Page Route
 @app.route("/")
 def home():
@@ -141,7 +160,6 @@ def logout():
     session.clear()
     return redirect(url_for("home"))
 
-# Admin slot control
 # Admin slot control
 @app.route("/admin/slot_control")
 def admin_slot_control():
@@ -664,14 +682,75 @@ def write_shift_record_if_not_exists(application_row):
 # Admin shift application page
 @app.route("/admin/shift_application")
 def admin_shift_application():
+    # --- Load application data ---
     app_df = load_excel_safe(APPLICATION_FILE)
-    app_df.columns = [c.strip() for c in app_df.columns]
 
+    if app_df.empty:
+        return render_template(
+            "admin_shift_application.html",
+            application=[],
+            today=datetime.today().date()
+        )
+
+    # Normalize application columns
+    app_df.columns = app_df.columns.str.strip()
+    # id is lowercase in application file
+    app_df["id"] = app_df["id"].astype(str)
+
+    # --- Ensure admin columns exist ---
     for col in ["admindecision", "adminremarks", "status"]:
         if col not in app_df.columns:
             app_df[col] = ""
 
+    # --- Normalize date ---
     app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce")
+
+    # ===============================
+    # NEW PART: merge account.xlsx
+    # ===============================
+    acc_df = load_excel_safe(ACCOUNT_FILE)
+
+    if not acc_df.empty:
+        acc_df.columns = acc_df.columns.str.strip()
+        acc_df["ID"] = acc_df["ID"].astype(str)
+
+        # Ensure required account columns
+        for col in [
+            "onjobtrain",
+            "nightShift",
+            "totalApprovedShift",
+            "totalPendingShift"
+        ]:
+            if col not in acc_df.columns:
+                acc_df[col] = 0
+
+        # Merge
+        app_df = app_df.merge(
+            acc_df[
+                [
+                    "ID",
+                    "onjobtrain",
+                    "nightShift",
+                    "totalApprovedShift",
+                    "totalPendingShift"
+                ]
+            ],
+            left_on="id",
+            right_on="ID",
+            how="left"
+        )
+
+        app_df.drop(columns=["ID"], inplace=True, errors="ignore")
+
+    # --- Fill missing values ---
+    for col in [
+        "onjobtrain",
+        "nightShift",
+        "totalApprovedShift",
+        "totalPendingShift"
+    ]:
+        if col in app_df.columns:
+            app_df[col] = app_df[col].fillna(0).astype(int)
 
     return render_template(
         "admin_shift_application.html",
@@ -683,40 +762,65 @@ def admin_shift_application():
 @app.route("/admin/shift_application/update", methods=["POST"])
 def update_shift_application():
     try:
-        timestamp = request.form.get("timestamp", "").strip()
+        # ------------------ GET FORM DATA ------------------
+        timestamp = request.form.get("timestamp", "").strip()  # original timestamp (for logging)
+        key = request.form.get("key", "").strip()              # composite key: id_date_shift_shiftlevel
         admindecision = request.form.get("admindecision", "").strip()
         adminremarks = request.form.get("adminremarks", "").strip()
         status = request.form.get("status", "").strip()
 
-        if not timestamp:
-            return jsonify(success=False, error="Missing timestamp"), 400
+        if not key:
+            return jsonify(success=False, error="Missing key"), 400
 
+        try:
+            id_, date_str, shift, level = key.split("_")
+        except ValueError:
+            return jsonify(success=False, error="Invalid key format"), 400
+
+        # ------------------ LOAD APPLICATION DATA ------------------
         app_df = load_excel_safe(APPLICATION_FILE)
         app_df.columns = [c.strip() for c in app_df.columns]
 
-        # Normalize timestamp_str (original application timestamp)
-        if "timestamp_str" not in app_df.columns:
-            return jsonify(success=False, error="timestamp_str column missing"), 500
+        # Ensure necessary columns exist
+        for col in ["admindecision", "adminremarks", "status", "adminUpdateTimestamp", "timestamp_str"]:
+            if col not in app_df.columns:
+                app_df[col] = ""
 
+        # Normalize columns for matching
+        app_df["id"] = app_df["id"].astype(str)
+        app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce")
+        app_df["shiftperiod"] = app_df["shiftperiod"].str.lower()
+        app_df["shiftlevel"] = app_df["shiftlevel"].str.lower()
         app_df["timestamp_str"] = app_df["timestamp_str"].astype(str).str.strip()
-        mask = app_df["timestamp_str"] == timestamp
+
+        # ------------------ CREATE MASK ------------------
+        mask = (
+            (app_df["id"] == id_) &
+            (app_df["date"].dt.strftime("%Y-%m-%d") == date_str) &
+            (app_df["shiftperiod"] == shift.lower()) &
+            (app_df["shiftlevel"] == level.lower())
+        )
 
         if not mask.any():
             return jsonify(success=False, error="Application not found"), 404
-        
-        # Update admin fields
+
+        # ------------------ UPDATE ROW ------------------
         app_df.loc[mask, ["admindecision", "adminremarks", "status"]] = [
             admindecision, adminremarks, status
         ]
         app_df.loc[mask, "adminUpdateTimestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        # Keep original timestamp for logging
+        if timestamp:
+            app_df.loc[mask, "timestamp_str"] = timestamp
+
         save_excel_safe(app_df, APPLICATION_FILE)
 
-        # Write approved shifts to record
+        # ------------------ WRITE APPROVED SHIFT TO RECORD ------------------
         if admindecision.lower() == "approved":
             write_shift_record_if_not_exists(app_df.loc[mask].iloc[0].to_dict())
 
-        return jsonify(success=True, message=f"Application {admindecision} successfully")
+        return jsonify(success=True, message=f"Application {admindecision} successfully updated")
 
     except Exception as e:
         print("update_shift_application ERROR:", e)
@@ -920,8 +1024,8 @@ def admin_download_excel(filename):
 # ==========================
 # Debug print all routes
 # ==========================
-for rule in app.url_map.iter_rules():
-    print(rule)
+# for rule in app.url_map.iter_rules():
+#     print(rule)
 
 # ==========================
 # Flask app for Replit
