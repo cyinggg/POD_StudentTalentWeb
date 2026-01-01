@@ -1,124 +1,158 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>ProjectHub Duty Calendar</title>
+    <title>Admin Shift Application</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         table {border-collapse: collapse; width: 100%;}
-        th, td {border: 1px solid #ccc; padding: 10px; vertical-align: top; height: 100px;}
-        th {background-color: #f2f2f2;}
-        td.other-month {background-color: #f9f9f9; color: #999;}
-
-        /* Shift type colors */
-        .morning {background-color: #DFF2BF; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
-        .afternoon {background-color: #FEEFB3; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
-        .night {background-color: #FFBABA; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
-
-        /* Tooltip styling */
-        .tooltip {
-            position: relative;
-            display: inline-block;
-        }
-
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: max-content;
-            max-width: 200px;
-            background-color: #555;
-            color: #fff;
-            text-align: left;
-            border-radius: 5px;
-            padding: 5px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 12px;
-        }
-
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        /* Legend styling */
-        .legend {
-            margin-top: 20px;
-        }
-
-        .legend-item {
-            display: inline-block;
-            margin-right: 20px;
-        }
-
-        .legend-color {
-            display: inline-block;
-            width: 15px;
-            height: 15px;
-            vertical-align: middle;
-            margin-right: 5px;
-            border: 1px solid #000;
-        }
-
-        .morning-legend {background-color: #DFF2BF;}
-        .afternoon-legend {background-color: #FEEFB3;}
-        .night-legend {background-color: #FFBABA;}
+        th, td {border:1px solid #ccc; padding:5px; vertical-align:top; height:100px;}
+        td.other-month {background-color:#f9f9f9; color:#999;}
+        .morning {background-color:#DFF2BF; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
+        .afternoon {background-color:#FEEFB3; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
+        .night {background-color:#FFBABA; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
+        .tooltip {position:relative; display:inline-block;}
+        .tooltip .tooltiptext {visibility:hidden; width:max-content; max-width:200px; background:#555; color:#fff;
+            text-align:left; border-radius:5px; padding:5px; position:absolute; z-index:1; bottom:125%; left:50%;
+            transform:translateX(-50%); opacity:0; transition:opacity 0.3s; font-size:12px;}
+        .tooltip:hover .tooltiptext {visibility:visible; opacity:1;}
     </style>
 </head>
 <body>
-    <h2>ProjectHub Duty Calendar - {{ year }} / {{ month }}</h2>
+<div class="container mt-3">
+    <h2>Admin Shift Application</h2>
 
-    <div>
-        <a href="{{ url_for('projecthub_duty_calendar', month=month-1 if month>1 else 12, year=year-1 if month==1 else year) }}">Previous Month</a> |
-        <a href="{{ url_for('projecthub_duty_calendar') }}">Current Month</a> |
-        <a href="{{ url_for('projecthub_duty_calendar', month=month+1 if month<12 else 1, year=year+1 if month==12 else year) }}">Next Month</a>
+    <!-- View Toggle -->
+    <div class="mb-2">
+        <button id="btnTableView" class="btn btn-primary">Table View</button>
+        <button id="btnCalendarView" class="btn btn-secondary">Calendar View</button>
     </div>
 
-    <table>
-        <tr>
-            <th>Mon</th>
-            <th>Tue</th>
-            <th>Wed</th>
-            <th>Thu</th>
-            <th>Fri</th>
-            <th>Sat</th>
-            <th>Sun</th>
-        </tr>
+    <!-- Table View -->
+    <div id="tableContainer">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Student ID</th>
+                    <th>Name</th>
+                    <th>Date</th>
+                    <th>Shift</th>
+                    <th>Level</th>
+                    <th>Status</th>
+                    <th>Admin Decision</th>
+                    <th>Admin Remarks</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for app in application %}
+                <tr data-key="{{ app.id }}_{{ app.date.strftime('%Y-%m-%d') }}_{{ app.shiftPeriod }}_{{ app.shiftLevel }}">
+                    <td>{{ app.id }}</td>
+                    <td>{{ app.name }}</td>
+                    <td>{{ app.date.strftime('%Y-%m-%d') }}</td>
+                    <td>{{ app.shiftPeriod }}</td>
+                    <td>{{ app.shiftLevel }}</td>
+                    <td class="status-badge">{{ app.status }}</td>
+                    <td>
+                        <select class="decision-select form-select">
+                            <option value="">Select</option>
+                            <option value="Approved" {% if app.admindecision=="Approved" %}selected{% endif %}>Approved</option>
+                            <option value="Rejected" {% if app.admindecision=="Rejected" %}selected{% endif %}>Rejected</option>
+                        </select>
+                    </td>
+                    <td class="admin-remarks-text">{{ app.adminremarks }}</td>
+                    <td><button class="save-btn btn btn-sm btn-success">Save</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
-        {% for week in month_days %}
-        <tr>
-            {% for day in week %}
-            <td class="{% if day.month != month %}other-month{% endif %}">
-                <strong>{{ day.day }}</strong><br>
-                {% set day_str = day.strftime("%Y-%m-%d") %}
-                {% if day_str in shifts_per_date %}
-                    {% for s in shifts_per_date[day_str] %}
-                        <div class="tooltip {{ s.shiftPeriod }}">
-                            {{ s.name }}
-                            <span class="tooltiptext">
-                                Shift: {{ s.shiftPeriod|capitalize }}<br>
-                                Level: {{ s.shiftLevel }}
-                            </span>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            </td>
+    <!-- Calendar View -->
+    <div id="calendarContainer" style="display:none;">
+        <h4>Calendar - {{ year }}/{{ month }}</h4>
+        <div>
+            <a href="{{ url_for('admin_shift_application', month=month-1 if month>1 else 12, year=year-1 if month==1 else year) }}">Prev</a> |
+            <a href="{{ url_for('admin_shift_application') }}">Current</a> |
+            <a href="{{ url_for('admin_shift_application', month=month+1 if month<12 else 1, year=year+1 if month==12 else year) }}">Next</a>
+        </div>
+        <table>
+            <tr>
+                <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+            </tr>
+            {% for week in month_days %}
+            <tr>
+                {% for day in week %}
+                <td class="{% if day.month != month %}other-month{% endif %}">
+                    <strong>{{ day.day }}</strong><br>
+                    {% set day_str = day.strftime('%Y-%m-%d') %}
+                    {% if day_str in calendar_data %}
+                        {% for s in calendar_data[day_str] %}
+                            <div class="tooltip {{ s.shiftPeriod }}">
+                                {{ s.name }}
+                                <span class="tooltiptext">
+                                    Shift: {{ s.shiftPeriod|capitalize }}<br>
+                                    Level: {{ s.shiftLevel }}<br>
+                                    Status: {{ s.status }}
+                                </span>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
             {% endfor %}
-        </tr>
-        {% endfor %}
-    </table>
-
-    <!-- Legend -->
-    <div class="legend">
-        <strong>Legend:</strong>
-        <div class="legend-item"><span class="legend-color morning-legend"></span> Morning</div>
-        <div class="legend-item"><span class="legend-color afternoon-legend"></span> Afternoon</div>
-        <div class="legend-item"><span class="legend-color night-legend"></span> Night</div>
+        </table>
     </div>
+</div>
 
-    <br>
-    <a href="/">Back to Home</a>
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+    const tableContainer = document.getElementById("tableContainer");
+    const calendarContainer = document.getElementById("calendarContainer");
+    const btnTableView = document.getElementById("btnTableView");
+    const btnCalendarView = document.getElementById("btnCalendarView");
+
+    btnTableView.addEventListener("click", ()=>{
+        tableContainer.style.display="block";
+        calendarContainer.style.display="none";
+        btnTableView.classList.replace("btn-secondary","btn-primary");
+        btnCalendarView.classList.replace("btn-primary","btn-secondary");
+    });
+    btnCalendarView.addEventListener("click", ()=>{
+        tableContainer.style.display="none";
+        calendarContainer.style.display="block";
+        btnCalendarView.classList.replace("btn-secondary","btn-primary");
+        btnTableView.classList.replace("btn-primary","btn-secondary");
+    });
+
+    // Table save buttons
+    document.querySelectorAll(".save-btn").forEach(btn=>{
+        btn.addEventListener("click", function(){
+            const row = this.closest("tr");
+            const key = row.dataset.key;
+            const status = row.querySelector(".status-badge").textContent;
+            const admindecision = row.querySelector(".decision-select").value;
+            const adminremarks = row.querySelector(".admin-remarks-text").textContent;
+
+            const formData = new URLSearchParams();
+            formData.append("key", key);
+            formData.append("status", status);
+            formData.append("admindecision", admindecision);
+            formData.append("adminremarks", adminremarks);
+
+            fetch("/admin/shift_application/update", {
+                method:"POST",
+                body: formData
+            }).then(async res=>{
+                const data = await res.json();
+                if(!res.ok) throw new Error(data.error||"Server error");
+                alert(`Updated: ${data.message}`);
+            }).catch(e=>{
+                alert(e.message||"Update failed");
+            });
+        });
+    });
+});
+</script>
 </body>
 </html>

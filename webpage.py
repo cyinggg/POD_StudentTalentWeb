@@ -6,6 +6,7 @@ import pandas as pd
 from calendar import monthrange, Calendar
 from datetime import datetime, date, timedelta
 import calendar
+from collections import defaultdict
 
 # Initialize App
 app = Flask(__name__)
@@ -689,72 +690,70 @@ def admin_shift_application():
         return render_template(
             "admin_shift_application.html",
             application=[],
+            calendar_data={},
             today=datetime.today().date()
         )
 
-    # Normalize application columns
+    # Normalize columns
     app_df.columns = app_df.columns.str.strip()
-    # id is lowercase in application file
     app_df["id"] = app_df["id"].astype(str)
 
-    # --- Ensure admin columns exist ---
+    # Ensure admin columns exist
     for col in ["admindecision", "adminremarks", "status"]:
         if col not in app_df.columns:
             app_df[col] = ""
 
-    # --- Normalize date ---
+    # Normalize date
     app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce")
 
-    # ===============================
-    # NEW PART: merge account.xlsx
-    # ===============================
+    # =============================== Merge account.xlsx ===============================
     acc_df = load_excel_safe(ACCOUNT_FILE)
-
     if not acc_df.empty:
         acc_df.columns = acc_df.columns.str.strip()
         acc_df["ID"] = acc_df["ID"].astype(str)
 
         # Ensure required account columns
-        for col in [
-            "onjobtrain",
-            "nightShift",
-            "totalApprovedShift",
-            "totalPendingShift"
-        ]:
+        for col in ["onjobtrain", "nightShift", "totalApprovedShift", "totalPendingShift"]:
             if col not in acc_df.columns:
                 acc_df[col] = 0
 
-        # Merge
+        # Merge application and account data
         app_df = app_df.merge(
-            acc_df[
-                [
-                    "ID",
-                    "onjobtrain",
-                    "nightShift",
-                    "totalApprovedShift",
-                    "totalPendingShift"
-                ]
-            ],
+            acc_df[["ID", "onjobtrain", "nightShift", "totalApprovedShift", "totalPendingShift"]],
             left_on="id",
             right_on="ID",
             how="left"
         )
-
         app_df.drop(columns=["ID"], inplace=True, errors="ignore")
 
-    # --- Fill missing values ---
-    for col in [
-        "onjobtrain",
-        "nightShift",
-        "totalApprovedShift",
-        "totalPendingShift"
-    ]:
+    # Fill missing values
+    for col in ["onjobtrain", "nightShift", "totalApprovedShift", "totalPendingShift"]:
         if col in app_df.columns:
             app_df[col] = app_df[col].fillna(0).astype(int)
 
+    # ---------------- Build calendar data ----------------
+    calendar_data = defaultdict(list)
+    for _, row in app_df.iterrows():
+        if pd.isna(row["date"]):
+            continue
+        date_str = row["date"].strftime("%Y-%m-%d")
+        calendar_data[date_str].append({
+            "id": row["id"],
+            "name": row["name"],
+            "shift": row.get("shiftperiod") or row.get("shiftPeriod"),
+            "level": row.get("shiftlevel") or row.get("shiftLevel"),
+            "admindecision": row.get("admindecision", ""),
+            "status": row.get("status", ""),
+            "onjobtrain": row.get("onjobtrain", 0),
+            "nightShift": row.get("nightShift", 0),
+            "adminremarks": row.get("adminremarks", "")
+        })
+
+    # ------------------ Pass to template ----------------
     return render_template(
         "admin_shift_application.html",
         application=app_df.to_dict("records"),
+        calendar_data=calendar_data,
         today=datetime.today().date()
     )
 
@@ -763,7 +762,7 @@ def admin_shift_application():
 def update_shift_application():
     try:
         # ------------------ GET FORM DATA ------------------
-        timestamp = request.form.get("timestamp", "").strip()  # original timestamp (for logging)
+        timestamp = request.form.get("timestamp", "").strip()  # original timestamp
         key = request.form.get("key", "").strip()              # composite key: id_date_shift_shiftlevel
         admindecision = request.form.get("admindecision", "").strip()
         adminremarks = request.form.get("adminremarks", "").strip()

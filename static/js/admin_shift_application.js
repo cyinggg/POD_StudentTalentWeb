@@ -1,31 +1,59 @@
 document.addEventListener("DOMContentLoaded", function() {
-    let currentRow = null;
+    // --------------------- Elements ---------------------
+    const tableContainer = document.getElementById("tableContainer");
+    const calendarContainer = document.getElementById("calendarContainer");
+    const btnTableView = document.getElementById("btnTableView");
+    const btnCalendarView = document.getElementById("btnCalendarView");
+
     const modal = new bootstrap.Modal(document.getElementById("remarksModal"));
     const modalInput = document.getElementById("modalRemarksInput");
+    let currentRow = null;
 
-    // ------------------ NOTIFICATION FUNCTION ------------------
+    // Table Filters
+    const filterText = document.getElementById("filterText");
+    const filterDate = document.getElementById("filterDate");
+    const filterShift = document.getElementById("filterShift");
+    const filterLevel = document.getElementById("filterLevel");
+    const filterStatus = document.getElementById("filterStatus");
+    const filterDecision = document.getElementById("filterDecision");
+    const filterOJT = document.getElementById("filterOJT");
+    const filterNight = document.getElementById("filterNight");
+
+    // ------------------ Notification ------------------
     function showNotification(message, isSuccess = true) {
         const box = document.getElementById("notification");
         const text = document.getElementById("notification-text");
-
-        if (!box || !text) {
-            console.error("Notification elements not found in DOM");
-            alert(message); // fallback
-            return;
-        }
+        if (!box || !text) { alert(message); return; }
 
         text.textContent = message;
         box.classList.remove("hidden");
-        box.classList.toggle("success", isSuccess);
-        box.classList.toggle("error", !isSuccess);
+        if (isSuccess) {
+            box.classList.add("success");
+            box.classList.remove("error");
+        } else {
+            box.classList.add("error");
+            box.classList.remove("success");
+        }
 
-        setTimeout(() => {
-            box.classList.add("hidden");
-        }, 3000);
+        setTimeout(() => box.classList.add("hidden"), 3000);
     }
-    // ------------------------------------------------------------
 
-    // Edit remarks
+    // ------------------ Toggle Views ------------------
+    btnTableView.addEventListener("click", () => {
+        tableContainer.style.display = "block";
+        calendarContainer.style.display = "none";
+        btnTableView.classList.add("btn-primary"); btnTableView.classList.remove("btn-secondary");
+        btnCalendarView.classList.add("btn-secondary"); btnCalendarView.classList.remove("btn-primary");
+    });
+
+    btnCalendarView.addEventListener("click", () => {
+        tableContainer.style.display = "none";
+        calendarContainer.style.display = "block";
+        btnCalendarView.classList.add("btn-primary"); btnCalendarView.classList.remove("btn-secondary");
+        btnTableView.classList.add("btn-secondary"); btnTableView.classList.remove("btn-primary");
+    });
+
+    // ------------------ Table Inline Editing ------------------
     document.querySelectorAll(".edit-remarks-btn").forEach(btn => {
         btn.addEventListener("click", function() {
             currentRow = this.closest("tr");
@@ -33,7 +61,6 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     });
 
-    // Save modal
     document.getElementById("saveRemarksModal").addEventListener("click", function() {
         if (currentRow) {
             currentRow.querySelector(".admin-remarks-text").textContent = modalInput.value;
@@ -41,7 +68,7 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     });
 
-    // Update status badge on dropdown change
+    // Update status badge on table select change
     document.querySelectorAll(".decision-select").forEach(select => {
         select.addEventListener("change", function() {
             const row = this.closest("tr");
@@ -51,101 +78,91 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     });
 
-    // Save button
+    // Table save buttons
     document.querySelectorAll(".save-btn").forEach(btn => {
         btn.addEventListener("click", function() {
             const row = this.closest("tr");
-            const timestamp = row.dataset.timestamp;
-            const key = row.dataset.key;  // composite key: id_date_shift_level
+            const key = row.dataset.key;
             const status = row.querySelector(".status-badge").textContent;
             const admindecision = row.querySelector(".decision-select").value;
             const adminremarks = row.querySelector(".admin-remarks-text").textContent;
 
-            // ------------------ FORM DATA ------------------
             const formData = new URLSearchParams();
-            formData.append("timestamp", timestamp);
             formData.append("key", key);
             formData.append("status", status);
             formData.append("admindecision", admindecision);
             formData.append("adminremarks", adminremarks);
-            // -----------------------------------------------
 
-            fetch("/admin/shift_application/update", {
-                method: "POST",
-                body: formData
+            fetch("/admin/shift_application/update", { method: "POST", body: formData })
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Server error");
+                showNotification(`Table: ${data.message}`, true);
             })
-            .then(async response => {
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.error || "Server error");
-                }
-
-                showNotification(data.message, true);
-            })
-            .catch(error => {
-                console.error(error);
-                showNotification(error.message || "Update failed", false);
-            });
+            .catch(e => showNotification(e.message || "Update failed", false));
         });
     });
-});
 
-// Filter
-const filterText = document.getElementById("filterText");
-const filterDate = document.getElementById("filterDate");
-const filterShift = document.getElementById("filterShift");
-const filterLevel = document.getElementById("filterLevel");
-const filterStatus = document.getElementById("filterStatus");
-const filterDecision = document.getElementById("filterDecision");
-const filterOJT = document.getElementById("filterOJT");
-const filterNight = document.getElementById("filterNight");
+    // ------------------ Calendar Inline Editing ------------------
+    document.querySelectorAll(".save-btn-inline").forEach(btn => {
+        btn.addEventListener("click", function() {
+            const shiftBadge = this.closest(".shift-badge");
+            const key = shiftBadge.dataset.key;
+            const select = shiftBadge.querySelector(".decision-select-inline");
+            const textarea = shiftBadge.querySelector(".remarks-input-inline");
 
-function applyFilters() {
-    const text = filterText.value.toLowerCase();
-    const status = filterStatus.value;
-    const decision = filterDecision.value;
-    const ojt = filterOJT.value;
-    const night = filterNight.value;
+            const admindecision = select.value;
+            const adminremarks = textarea.value;
+            const status = admindecision; // optional, same logic as table
 
-    document.querySelectorAll("#applicationTable tbody tr").forEach(row => {
-        let visible = true;
+            const formData = new URLSearchParams();
+            formData.append("key", key);
+            formData.append("status", status);
+            formData.append("admindecision", admindecision);
+            formData.append("adminremarks", adminremarks);
 
-        if (text) {
-            const id = row.dataset.id || "";
-            const name = row.dataset.name || "";
-            visible &= id.includes(text) || name.includes(text);
-        }
-
-        if (filterDate.value && row.dataset.date !== filterDate.value) {
-            visible = false;
-        }
-
-        if (filterShift.value && row.dataset.shift !== filterShift.value) {
-            visible = false;
-        }
-
-        if (filterLevel.value && row.dataset.level !== filterLevel.value) {
-            visible = false;
-        }
-
-        if (status && row.dataset.status !== status) visible = false;
-        if (decision && row.dataset.decision !== decision) visible = false;
-        if (ojt && row.dataset.ojt !== ojt) visible = false;
-        if (night && row.dataset.night !== night) visible = false;
-
-        row.style.display = visible ? "" : "none";
+            fetch("/admin/shift_application/update", { method: "POST", body: formData })
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Server error");
+                showNotification(`Calendar: ${data.message}`, true);
+            })
+            .catch(e => showNotification(e.message || "Update failed", false));
+        });
     });
-}
 
-[
-  filterText,
-  filterStatus,
-  filterDecision,
-  filterOJT,
-  filterNight,
-  filterDate,
-  filterShift,
-  filterLevel
-].forEach(el => el.addEventListener("input", applyFilters));
+    // ------------------ Table Filters ------------------
+    function applyFilters() {
+        const text = filterText.value.toLowerCase();
+        const status = filterStatus.value;
+        const decision = filterDecision.value;
+        const ojt = filterOJT.value;
+        const night = filterNight.value;
 
+        document.querySelectorAll("#applicationTable tbody tr").forEach(row => {
+            let visible = true;
+
+            if (text) {
+                const id = row.dataset.id || "";
+                const name = row.dataset.name || "";
+                visible = visible && (id.includes(text) || name.includes(text));
+            }
+
+            if (filterDate.value && row.dataset.date !== filterDate.value) visible = false;
+            if (filterShift.value && row.dataset.shift !== filterShift.value) visible = false;
+            if (filterLevel.value && row.dataset.level !== filterLevel.value) visible = false;
+            if (status && row.dataset.status !== status) visible = false;
+            if (decision && row.dataset.decision !== decision) visible = false;
+            if (ojt && row.dataset.ojt !== ojt) visible = false;
+            if (night && row.dataset.night !== night) visible = false;
+
+            row.style.display = visible ? "" : "none";
+        });
+    }
+
+    [
+        filterText, filterStatus, filterDecision,
+        filterOJT, filterNight, filterDate,
+        filterShift, filterLevel
+    ].forEach(el => el.addEventListener("input", applyFilters));
+});
