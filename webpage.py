@@ -7,6 +7,8 @@ from calendar import monthrange, Calendar
 from datetime import datetime, date, timedelta
 import calendar
 from collections import defaultdict
+import tempfile
+import shutil
 
 # Initialize App
 app = Flask(__name__)
@@ -36,6 +38,24 @@ def load_excel_safe(filepath):
 def save_excel_safe(df, filepath):
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     df.to_excel(filepath, index=False)
+
+def save_excel_atomic(df, filepath):
+    """
+    Transaction-safe Excel write:
+    prevents partial writes / corruption
+    """
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+        temp_path = tmp.name
+
+    try:
+        df.to_excel(temp_path, index=False)
+        shutil.move(temp_path, filepath)  # atomic replace
+    except Exception:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise
 
 # Normalize account.xlsx
 def normalize_account_df(df):
@@ -529,145 +549,172 @@ def student_coach_shifts():
 # Student coach book / cancel
 @app.route("/student_coach/shift_action", methods=["POST"])
 def student_coach_shift_action():
-    user = session.get("user")
-    if not user or user.get("role") != "student coach":
-        return jsonify(success=False, error="Unauthorized"), 403
+    try:
+        # -------------------------
+        # AUTH
+        # -------------------------
+        user = session.get("user")
+        if not user or user.get("role") != "student coach":
+            return jsonify(success=False, error="Unauthorized"), 403
 
-    date_raw = request.form.get("date")
-    shift_period = request.form.get("shiftperiod")
-    shift_level = request.form.get("shiftlevel")
-    action = request.form.get("action")
+        # -------------------------
+        # INPUT
+        # -------------------------
+        date_raw = request.form.get("date")
+        shift_period = request.form.get("shiftperiod")
+        shift_level = request.form.get("shiftlevel")
+        action = request.form.get("action")
 
-    if not all([date_raw, shift_period, shift_level, action]):
-        return jsonify(success=False, error="Missing data"), 400
+        if not all([date_raw, shift_period, shift_level, action]):
+            return jsonify(success=False, error="Missing data"), 400
 
-    shift_date = pd.to_datetime(date_raw).date()
-    sid = str(user["id"])
+        shift_date = pd.to_datetime(date_raw, errors="coerce")
+        if pd.isna(shift_date):
+            return jsonify(success=False, error="Invalid date"), 400
+        shift_date = shift_date.date()
 
-    # Load Excel files
-    slot_df = load_excel_safe(SLOT_FILE)
-    app_df = load_excel_safe(APPLICATION_FILE)
+        sid = str(user["id"])
 
-    # Normalize
-    slot_df.columns = slot_df.columns.str.strip().str.lower()
-    if "date" in slot_df.columns:
-        slot_df["date"] = pd.to_datetime(slot_df["date"], errors="coerce").dt.date
-    app_df.columns = app_df.columns.str.strip().str.lower()
-    if "date" in app_df.columns:
-        app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce").dt.date
-    if "id" in app_df.columns:
+        # -------------------------
+        # LOAD EXCEL FILES
+        # -------------------------
+        slot_df = load_excel_safe(SLOT_FILE)
+        app_df = load_excel_safe(APPLICATION_FILE)
+
+        # -------------------------
+        # NORMALIZE SLOT FILE
+        # -------------------------
+        slot_df.columns = slot_df.columns.str.strip().str.lower()
+
+        if "date" in slot_df.columns:
+            slot_df["date"] = pd.to_datetime(
+                slot_df["date"], errors="coerce"
+            ).dt.date
+
+        for col in ["onjobtrain", "nightshift"]:
+            if col not in slot_df.columns:
+                slot_df[col] = 0
+            slot_df[col] = slot_df[col].fillna(0).astype(int)
+
+        # -------------------------
+        # NORMALIZE APPLICATION FILE
+        # -------------------------
+        app_df.columns = app_df.columns.str.strip().str.lower()
+
+        required_cols = [
+            "timestamp", "id", "name", "month", "date", "day",
+            "shiftperiod", "shiftlevel", "status",
+            "admindecision", "adminremarks", "cancelrequest"
+        ]
+        for col in required_cols:
+            if col not in app_df.columns:
+                app_df[col] = ""
+
         app_df["id"] = app_df["id"].astype(str)
+        app_df["date"] = pd.to_datetime(
+            app_df["date"], errors="coerce"
+        ).dt.date
 
-    # Get shift
-    slot = slot_df[
-        (slot_df["date"] == shift_date) &
-        (slot_df["shiftperiod"] == shift_period) &
-        (slot_df["shiftlevel"] == shift_level)
-    ]
-    if slot.empty:
-        return jsonify(success=False, error="Shift not found"), 404
-    slot = slot.iloc[0]
+        # -------------------------
+        # FIND SLOT
+        # -------------------------
+        slot = slot_df[
+            (slot_df["date"] == shift_date) &
+            (slot_df["shiftperiod"] == shift_period) &
+            (slot_df["shiftlevel"] == shift_level)
+        ]
 
-    # Check eligibility
-    slot_ojt = int(slot.get("onjobtrain", 0))
-    slot_night = int(slot.get("nightshift", 0))
+        if slot.empty:
+            return jsonify(success=False, error="Shift not found"), 404
 
-    user_ojt = int(user.get("onjobtrain", 0))
-    user_night = int(user.get("nightShift", 0))
+        slot = slot.iloc[0]
 
-    eligible = True
-    error_msg = ""
+        # -------------------------
+        # ELIGIBILITY (UNCHANGED LOGIC)
+        # -------------------------
+        slot_ojt = int(slot.get("onjobtrain", 0))
+        slot_night = int(slot.get("nightshift", 0))
 
-    # Night-only slot
-    if slot_night == 1 and slot_ojt == 0:
-        if user_night != 1:
-            eligible = False
-            error_msg = "Night shift eligibility required"
+        user_ojt = int(user.get("onjobtrain", 0))
+        user_night = int(user.get("nightShift", 0))
 
-    # OJT-only slot
-    elif slot_ojt == 1 and slot_night == 0:
-        if user_ojt != 1 and user_night != 1:
-            eligible = False
-            error_msg = "OJT or night eligibility required"
+        if slot_night == 1 and slot_ojt == 0 and user_night != 1:
+            return jsonify(success=False, error="Night shift eligibility required"), 403
 
-    # OJT + Night slot
-    elif slot_ojt == 1 and slot_night == 1:
-        if user_ojt != 1 and user_night != 1:
-            eligible = False
-            error_msg = "OJT or night eligibility required"
+        if slot_ojt == 1 and slot_night == 0 and user_ojt != 1 and user_night != 1:
+            return jsonify(success=False, error="OJT or night eligibility required"), 403
 
-    if not eligible:
-        return jsonify(success=False, error=error_msg), 403
+        if slot_ojt == 1 and slot_night == 1 and user_ojt != 1 and user_night != 1:
+            return jsonify(success=False, error="OJT or night eligibility required"), 403
 
-    # Existing application
-    existing_app = app_df[
-        (app_df["id"] == sid) &
-        (app_df["date"] == shift_date) &
-        (app_df["shiftperiod"] == shift_period) &
-        (app_df["shiftlevel"] == shift_level)
-    ]
+        # -------------------------
+        # EXISTING APPLICATION
+        # -------------------------
+        existing_app = app_df[
+            (app_df["id"] == sid) &
+            (app_df["date"] == shift_date) &
+            (app_df["shiftperiod"] == shift_period) &
+            (app_df["shiftlevel"] == shift_level)
+        ]
 
-    # --- Perform action ---
-    if action == "book":
-        if not existing_app.empty:
-            return jsonify(success=False, error="You already booked this shift"), 400
-        new_app = {
-            "timestamp": datetime.now(),
-            "id": user["id"],
-            "name": user["name"],
-            "month": shift_date.strftime("%Y-%m"),
-            "date": shift_date,
-            "day": shift_date.strftime("%A"),
-            "shiftperiod": shift_period,
-            "shiftlevel": shift_level,
-            "status": "pending",
-            "admindecision": "",
-            "adminremarks": "",
-            "cancelrequest": 0
-        }
-        app_df = pd.concat([app_df, pd.DataFrame([new_app])], ignore_index=True)
+        # -------------------------
+        # ACTIONS (UNCHANGED LOGIC)
+        # -------------------------
+        if action == "book":
+            if not existing_app.empty:
+                return jsonify(success=False, error="You already booked this shift"), 400
 
-        save_excel_safe(app_df, APPLICATION_FILE)
+            new_app = {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "id": sid,
+                "name": user["name"],
+                "month": shift_date.strftime("%Y-%m"),
+                "date": shift_date.strftime("%Y-%m-%d"),
+                "day": shift_date.strftime("%A"),
+                "shiftperiod": shift_period,
+                "shiftlevel": shift_level,
+                "status": "pending",
+                "admindecision": "",
+                "adminremarks": "",
+                "cancelrequest": 0
+            }
 
-        # ---- UPDATE ACCOUNT TOTALS ----
-        recalculate_account_shift_totals()
+            app_df = pd.concat([app_df, pd.DataFrame([new_app])], ignore_index=True)
 
-        return jsonify(success=True)
-
-    elif action == "cancel":
-        if existing_app.empty:
-            return jsonify(success=False, error="No booking found"), 404
-
-        current_status = existing_app.iloc[0]["status"].lower()
-        idx = existing_app.index[0]
-
-        if current_status == "pending":
-            # Remove pending application
-            app_df = app_df.drop(idx)
-
-            save_excel_safe(app_df, APPLICATION_FILE)
-
-            # ---- UPDATE ACCOUNT TOTALS ----
+            save_excel_atomic(app_df, APPLICATION_FILE)
             recalculate_account_shift_totals()
 
             return jsonify(success=True)
-        
-        elif current_status == "approved":
-            # Mark cancel request for admin approval
-            app_df.at[idx, "cancelrequest"] = 1
 
-            save_excel_safe(app_df, APPLICATION_FILE)
+        elif action == "cancel":
+            if existing_app.empty:
+                return jsonify(success=False, error="No booking found"), 404
 
-            # ---- UPDATE ACCOUNT TOTALS ----
-            recalculate_account_shift_totals()
+            idx = existing_app.index[0]
+            current_status = existing_app.iloc[0]["status"].lower()
 
-            return jsonify(success=True, message="Cancel request sent to admin for approval")
-        
-        else:
+            if current_status == "pending":
+                app_df = app_df.drop(idx)
+                save_excel_atomic(app_df, APPLICATION_FILE)
+                recalculate_account_shift_totals()
+                return jsonify(success=True)
+
+            elif current_status == "approved":
+                app_df.at[idx, "cancelrequest"] = 1
+                save_excel_atomic(app_df, APPLICATION_FILE)
+                recalculate_account_shift_totals()
+                return jsonify(
+                    success=True,
+                    message="Cancel request sent to admin for approval"
+                )
+
             return jsonify(success=False, error="Cannot cancel this shift"), 400
 
-    else:
         return jsonify(success=False, error="Invalid action"), 400
+
+    except Exception as e:
+        print("student_coach_shift_action ERROR:", e)
+        return jsonify(success=False, error="Internal server error"), 500
 
 # Write approved shift to shift_record.xlsx
 def write_shift_record_if_not_exists(application_row):

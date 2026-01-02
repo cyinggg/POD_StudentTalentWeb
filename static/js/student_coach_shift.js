@@ -4,13 +4,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         block.addEventListener("click", async () => {
 
-            // Ineligible guard
+            // ---- Ineligible guard ----
             if (block.classList.contains("ineligible")) {
                 alert("You are not eligible to book this shift.");
                 return;
             }
 
-            // Determine status safely
+            // ---- Determine status safely ----
             let status = "";
             if (block.classList.contains("open")) status = "open";
             else if (block.classList.contains("pending")) status = "pending";
@@ -21,18 +21,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            // Determine action
+            // ---- Determine action ----
             let action = "book";
+
             if (status === "pending") {
                 if (!confirm("Cancel this pending shift?")) return;
                 action = "cancel";
             }
+
             if (status === "approved") {
                 if (!confirm("This shift is approved. Cancellation requires admin approval. Proceed?")) return;
                 action = "cancel";
             }
 
-            // Prepare payload
+            // ---- Prepare payload ----
             const formData = new FormData();
             formData.append("date", block.dataset.date);
             formData.append("shiftperiod", block.dataset.shift);
@@ -45,16 +47,34 @@ document.addEventListener("DOMContentLoaded", () => {
                     body: formData
                 });
 
-                const data = await resp.json();
+                // ❗ Handle server errors BEFORE parsing JSON
+                if (!resp.ok) {
+                    const text = await resp.text();
+                    console.error("Server returned error:", text);
+                    alert("Server error occurred. Please contact admin.");
+                    return;
+                }
 
+                // ❗ Ensure response is JSON
+                let data;
+                try {
+                    data = await resp.json();
+                } catch (jsonErr) {
+                    console.error("Invalid JSON response", jsonErr);
+                    alert("Unexpected server response. Please try again.");
+                    return;
+                }
+
+                // ---- Handle backend response ----
                 if (data.success) {
                     location.reload();
                 } else {
-                    alert(data.error || data.message || "Action failed");
+                    alert(data.error || data.message || "Action failed.");
                 }
+
             } catch (err) {
-                console.error(err);
-                alert("Server error. Please try again.");
+                console.error("Fetch failed:", err);
+                alert("Network or server error. Please try again.");
             }
         });
 
