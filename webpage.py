@@ -453,37 +453,29 @@ def student_coach_shifts():
     sid = str(user["id"])
 
     # -----------------------------
-    # Load Excel files safely
+    # Load Excel safely
     # -----------------------------
-    slot_df = normalize_shift_df(load_excel_safe(SLOT_FILE))
-    app_df = normalize_shift_df(load_excel_safe(APPLICATION_FILE))
-    rec_df = normalize_shift_df(load_excel_safe(RECORD_FILE))
+    slot_df = load_excel_safe(SLOT_FILE)
+    app_df = load_excel_safe(APPLICATION_FILE)
+    rec_df = load_excel_safe(RECORD_FILE)
 
     # -----------------------------
-    # Normalize slot_df columns/types
+    # Normalize SLOT
     # -----------------------------
     slot_df.columns = slot_df.columns.str.strip().str.lower()
+
     for col in ["isopen", "onjobtrain", "nightshift"]:
         if col not in slot_df.columns:
             slot_df[col] = 0
         slot_df[col] = slot_df[col].fillna(0).astype(int)
 
-    if "date" in slot_df.columns:
-        slot_df["date"] = pd.to_datetime(slot_df["date"], errors="coerce").dt.date
+    slot_df["date"] = pd.to_datetime(slot_df.get("date"), errors="coerce").dt.date
 
     # -----------------------------
-    # Filter slots for current month & open
-    # -----------------------------
-    slot_df = slot_df[
-        (slot_df["date"].notna()) &
-        (slot_df["date"].apply(lambda d: d.year == year and d.month == month)) &
-        (slot_df["isopen"] == 1)
-    ]
-
-    # -----------------------------
-    # Normalize application dataframe
+    # Normalize APPLICATION
     # -----------------------------
     app_df.columns = app_df.columns.str.strip().str.lower()
+
     required_cols = [
         "timestamp", "id", "name", "month", "date", "day",
         "shiftperiod", "shiftlevel", "status",
@@ -492,26 +484,66 @@ def student_coach_shifts():
     for col in required_cols:
         if col not in app_df.columns:
             app_df[col] = ""
+
     app_df["id"] = app_df["id"].astype(str)
     app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce").dt.date
 
-    # Fill missing timestamps for old rows
+    # 🔒 HARD FIX: NEVER NaN TIMESTAMP
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    if "timestamp" not in app_df.columns:
-        app_df["timestamp"] = now_str
-    else:
-        app_df["timestamp"] = app_df["timestamp"].fillna(now_str).replace("", now_str)
+    app_df["timestamp"] = (
+        app_df["timestamp"]
+        .astype(str)
+        .replace("nan", "")
+        .replace("", now_str)
+        .fillna(now_str)
+    )
 
     # -----------------------------
-    # Normalize record dataframe
+    # Normalize RECORD
     # -----------------------------
     rec_df.columns = rec_df.columns.str.strip().str.lower()
-    rec_df["id"] = rec_df["id"].astype(str)
-    if "date" in rec_df.columns:
-        rec_df["date"] = pd.to_datetime(rec_df["date"], errors="coerce").dt.date
+    rec_df["id"] = rec_df.get("id", "").astype(str)
+    rec_df["date"] = pd.to_datetime(rec_df.get("date"), errors="coerce").dt.date
 
     # -----------------------------
-    # Build calendar weeks
+    # FILTER SLOT MONTH (OPEN ONLY)
+    # -----------------------------
+    slot_df = slot_df[
+        (slot_df["date"].notna()) &
+        (slot_df["date"].apply(lambda d: d.year == year and d.month == month)) &
+        (slot_df["isopen"] == 1)
+    ]
+
+    # -----------------------------
+    # 🔥 INCLUDE OLD APPLICATIONS EVEN IF SLOT MISSING
+    # -----------------------------
+    user_apps = app_df[
+        (app_df["id"] == sid) &
+        (app_df["date"].notna()) &
+        (app_df["date"].apply(lambda d: d.year == year and d.month == month))
+    ]
+
+    for _, row in user_apps.iterrows():
+        exists = (
+            (slot_df["date"] == row["date"]) &
+            (slot_df["shiftperiod"] == row["shiftperiod"]) &
+            (slot_df["shiftlevel"] == row["shiftlevel"])
+        )
+        if not exists.any():
+            slot_df = pd.concat([
+                slot_df,
+                pd.DataFrame([{
+                    "date": row["date"],
+                    "shiftperiod": row["shiftperiod"],
+                    "shiftlevel": row["shiftlevel"],
+                    "isopen": 0,
+                    "onjobtrain": 0,
+                    "nightshift": 0
+                }])
+            ], ignore_index=True)
+
+    # -----------------------------
+    # BUILD CALENDAR
     # -----------------------------
     cal = calendar.Calendar(firstweekday=calendar.MONDAY)
     weeks = []
@@ -520,58 +552,58 @@ def student_coach_shifts():
         week_days = []
         for d in week:
             day_shifts = []
-            if d.month == month:
-                shifts = slot_df[slot_df["date"] == d]
-                for _, slot in shifts.iterrows():
-                    # Eligibility checks
-                    eligible = True
-                    reasons = []
 
-                    slot_ojt = int(slot.get("onjobtrain", 0))
-                    slot_night = int(slot.get("nightshift", 0))
-                    user_ojt = int(user.get("onjobtrain", 0))
-                    user_night = int(user.get("nightShift", 0))
+            shifts = slot_df[slot_df["date"] == d]
 
-                    if slot_night == 1 and slot_ojt == 0 and user_night != 1:
-                        eligible = False
-                        reasons.append("Night shift eligibility required")
-                    elif slot_ojt == 1 and slot_night == 0 and user_ojt != 1 and user_night != 1:
-                        eligible = False
-                        reasons.append("OJT or night eligibility required")
-                    elif slot_ojt == 1 and slot_night == 1 and user_ojt != 1 and user_night != 1:
-                        eligible = False
-                        reasons.append("OJT or night eligibility required")
+            for _, slot in shifts.iterrows():
+                eligible = True
+                reasons = []
 
-                    reason = "; ".join(reasons)
+                slot_ojt = int(slot.get("onjobtrain", 0))
+                slot_night = int(slot.get("nightshift", 0))
+                user_ojt = int(user.get("onjobtrain", 0))
+                user_night = int(user.get("nightShift", 0))
 
-                    # Existing booking checks
-                    status = "open"
-                    app = app_df[
-                        (app_df["id"] == sid) &
-                        (app_df["date"] == d) &
-                        (app_df["shiftperiod"] == slot["shiftperiod"]) &
-                        (app_df["shiftlevel"] == slot["shiftlevel"])
-                    ]
-                    rec = rec_df[
-                        (rec_df["id"] == sid) &
-                        (rec_df["date"] == d) &
-                        (rec_df["shiftperiod"] == slot["shiftperiod"]) &
-                        (rec_df["shiftlevel"] == slot["shiftlevel"])
-                    ]
+                if slot_night == 1 and slot_ojt == 0 and user_night != 1:
+                    eligible = False
+                    reasons.append("Night shift eligibility required")
+                elif slot_ojt == 1 and slot_night == 0 and user_ojt != 1 and user_night != 1:
+                    eligible = False
+                    reasons.append("OJT or night eligibility required")
+                elif slot_ojt == 1 and slot_night == 1 and user_ojt != 1 and user_night != 1:
+                    eligible = False
+                    reasons.append("OJT or night eligibility required")
 
-                    if not rec.empty:
-                        status = "approved"
-                    elif not app.empty:
-                        status = app.iloc[0]["status"].lower()
+                status = "open"
 
-                    day_shifts.append({
-                        "shiftperiod": slot["shiftperiod"],
-                        "shiftlevel": slot["shiftlevel"],
-                        "status": status,
-                        "iseligible": eligible,
-                        "reason": reason,
-                        "date": d
-                    })
+                app = app_df[
+                    (app_df["id"] == sid) &
+                    (app_df["date"] == d) &
+                    (app_df["shiftperiod"] == slot["shiftperiod"]) &
+                    (app_df["shiftlevel"] == slot["shiftlevel"])
+                ]
+
+                rec = rec_df[
+                    (rec_df["id"] == sid) &
+                    (rec_df["date"] == d) &
+                    (rec_df["shiftperiod"] == slot["shiftperiod"]) &
+                    (rec_df["shiftlevel"] == slot["shiftlevel"])
+                ]
+
+                if not rec.empty:
+                    status = "approved"
+                elif not app.empty:
+                    status = app.iloc[0]["status"].lower()
+
+                day_shifts.append({
+                    "shiftperiod": slot["shiftperiod"],
+                    "shiftlevel": slot["shiftlevel"],
+                    "status": status,
+                    "iseligible": eligible,
+                    "reason": "; ".join(reasons),
+                    "date": d
+                })
+
             week_days.append({"date": d, "shifts": day_shifts})
         weeks.append(week_days)
 
@@ -593,9 +625,6 @@ def student_coach_shift_action():
         if not user or user.get("role") != "student coach":
             return jsonify(success=False, error="Unauthorized"), 403
 
-        # -----------------------------
-        # Input data
-        # -----------------------------
         date_raw = request.form.get("date")
         shift_period = request.form.get("shiftperiod")
         shift_level = request.form.get("shiftlevel")
@@ -611,22 +640,19 @@ def student_coach_shift_action():
 
         sid = str(user["id"])
 
-        # -----------------------------
-        # Load Excel files safely
-        # -----------------------------
         slot_df = load_excel_safe(SLOT_FILE)
         app_df = load_excel_safe(APPLICATION_FILE)
 
-        # Normalize columns
         slot_df.columns = slot_df.columns.str.strip().str.lower()
-        if "date" in slot_df.columns:
-            slot_df["date"] = pd.to_datetime(slot_df["date"], errors="coerce").dt.date
+        slot_df["date"] = pd.to_datetime(slot_df["date"], errors="coerce").dt.date
+
         for col in ["onjobtrain", "nightshift"]:
             if col not in slot_df.columns:
                 slot_df[col] = 0
             slot_df[col] = slot_df[col].fillna(0).astype(int)
 
         app_df.columns = app_df.columns.str.strip().str.lower()
+
         required_cols = [
             "timestamp", "id", "name", "month", "date", "day",
             "shiftperiod", "shiftlevel", "status",
@@ -635,43 +661,20 @@ def student_coach_shift_action():
         for col in required_cols:
             if col not in app_df.columns:
                 app_df[col] = ""
+
         app_df["id"] = app_df["id"].astype(str)
         app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce").dt.date
 
-        # Fill missing timestamps for old rows
+        # 🔒 HARD FIX
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        app_df["timestamp"] = app_df.get("timestamp", now_str).replace("", now_str).fillna(now_str)
+        app_df["timestamp"] = (
+            app_df["timestamp"]
+            .astype(str)
+            .replace("nan", "")
+            .replace("", now_str)
+            .fillna(now_str)
+        )
 
-        # -----------------------------
-        # Find slot
-        # -----------------------------
-        slot = slot_df[
-            (slot_df["date"] == shift_date) &
-            (slot_df["shiftperiod"] == shift_period) &
-            (slot_df["shiftlevel"] == shift_level)
-        ]
-        if slot.empty:
-            return jsonify(success=False, error="Shift not found"), 404
-        slot = slot.iloc[0]
-
-        # -----------------------------
-        # Eligibility checks
-        # -----------------------------
-        slot_ojt = int(slot.get("onjobtrain", 0))
-        slot_night = int(slot.get("nightshift", 0))
-        user_ojt = int(user.get("onjobtrain", 0))
-        user_night = int(user.get("nightShift", 0))
-
-        if slot_night == 1 and slot_ojt == 0 and user_night != 1:
-            return jsonify(success=False, error="Night shift eligibility required"), 403
-        if slot_ojt == 1 and slot_night == 0 and user_ojt != 1 and user_night != 1:
-            return jsonify(success=False, error="OJT or night eligibility required"), 403
-        if slot_ojt == 1 and slot_night == 1 and user_ojt != 1 and user_night != 1:
-            return jsonify(success=False, error="OJT or night eligibility required"), 403
-
-        # -----------------------------
-        # Existing application check
-        # -----------------------------
         existing_app = app_df[
             (app_df["id"] == sid) &
             (app_df["date"] == shift_date) &
@@ -679,15 +682,12 @@ def student_coach_shift_action():
             (app_df["shiftlevel"] == shift_level)
         ]
 
-        # -----------------------------
-        # Book / Cancel logic
-        # -----------------------------
         if action == "book":
             if not existing_app.empty:
                 return jsonify(success=False, error="You already booked this shift"), 400
 
             new_app = {
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "timestamp": now_str,
                 "id": sid,
                 "name": user["name"],
                 "month": shift_date.strftime("%Y-%m"),
@@ -700,31 +700,29 @@ def student_coach_shift_action():
                 "adminremarks": "",
                 "cancelrequest": 0
             }
+
             app_df = pd.concat([app_df, pd.DataFrame([new_app])], ignore_index=True)
             save_excel_safe(app_df, APPLICATION_FILE)
             recalculate_account_shift_totals()
             return jsonify(success=True)
 
-        elif action == "cancel":
+        if action == "cancel":
             if existing_app.empty:
                 return jsonify(success=False, error="No booking found"), 404
 
             idx = existing_app.index[0]
-            current_status = existing_app.iloc[0]["status"].lower()
+            status = existing_app.iloc[0]["status"].lower()
 
-            if current_status == "pending":
+            if status == "pending":
                 app_df = app_df.drop(idx)
-                save_excel_safe(app_df, APPLICATION_FILE)
-                recalculate_account_shift_totals()
-                return jsonify(success=True)
-
-            elif current_status == "approved":
+            elif status == "approved":
                 app_df.at[idx, "cancelrequest"] = 1
-                save_excel_safe(app_df, APPLICATION_FILE)
-                recalculate_account_shift_totals()
-                return jsonify(success=True, message="Cancel request sent to admin for approval")
+            else:
+                return jsonify(success=False, error="Cannot cancel"), 400
 
-            return jsonify(success=False, error="Cannot cancel this shift"), 400
+            save_excel_safe(app_df, APPLICATION_FILE)
+            recalculate_account_shift_totals()
+            return jsonify(success=True)
 
         return jsonify(success=False, error="Invalid action"), 400
 
@@ -832,12 +830,17 @@ def admin_shift_application():
             app_df[col] = ""
     
     # Fill missing timestamps for old rows
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    app_df["timestamp_str"] = app_df["timestamp_str"].replace("", now_str).fillna(now_str)
-    if "timestamp" not in app_df.columns:
-        app_df["timestamp"] = now_str
-    else:
-        app_df["timestamp"] = app_df["timestamp"].fillna(now_str).replace("", now_str)
+    # now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # app_df["timestamp_str"] = app_df["timestamp_str"].replace("", now_str).fillna(now_str)
+    # if "timestamp" not in app_df.columns:
+    #     app_df["timestamp"] = now_str
+    # else:
+    #     app_df["timestamp"] = app_df["timestamp"].fillna(now_str).replace("", now_str)
+
+    # Ensure columns exist but DO NOT modify values
+    for col in ["admindecision", "adminremarks", "status", "timestamp_str", "timestamp"]:
+        if col not in app_df.columns:
+            app_df[col] = ""
 
     # Merge with account data for eligibility info
     acc_df = load_excel_safe(ACCOUNT_FILE)
@@ -873,7 +876,8 @@ def admin_shift_application():
         calendar_data[date_str].append({
             "id": row["id"],
             "name": row["name"],
-            "shift": row.get("shiftperiod") or row.get("shiftPeriod"),
+            # "shift": row.get("shiftperiod") or row.get("shiftPeriod"),
+            "shift": str(row.get("shiftperiod") or row.get("shiftPeriod") or "").lower(),
             "level": row.get("shiftlevel") or row.get("shiftLevel"),
             "admindecision": row.get("admindecision", ""),
             "status": row.get("status", ""),
@@ -898,12 +902,14 @@ def admin_shift_application():
 @app.route("/admin/shift_application/update", methods=["POST"])
 def update_shift_application():
     try:
+        # -----------------------------
         # Get form data
-        timestamp = request.form.get("timestamp", "").strip()
-        key = request.form.get("key", "").strip()  # id_date_shift_shiftlevel
-        admindecision = request.form.get("admindecision", "").strip()
-        adminremarks = request.form.get("adminremarks", "").strip()
-        status = request.form.get("status", "").strip()
+        # -----------------------------
+        timestamp = (request.form.get("timestamp") or "").strip()
+        key = (request.form.get("key") or "").strip()
+        admindecision = (request.form.get("admindecision") or "").strip()
+        adminremarks = (request.form.get("adminremarks") or "").strip()
+        status = (request.form.get("status") or "").strip()
 
         if not key:
             return jsonify(success=False, error="Missing key"), 400
@@ -913,61 +919,87 @@ def update_shift_application():
         except ValueError:
             return jsonify(success=False, error="Invalid key format"), 400
 
-        # Load application data
+        # -----------------------------
+        # Load application file safely
+        # -----------------------------
         app_df = load_excel_safe(APPLICATION_FILE)
-        app_df.columns = [c.strip() for c in app_df.columns]
+        app_df.columns = app_df.columns.str.strip().str.lower()
 
-        # Ensure required columns exist
-        for col in ["admindecision", "adminremarks", "status", "adminUpdateTimestamp", "timestamp_str"]:
+        # -----------------------------
+        # Ensure required columns (NO mutation)
+        # -----------------------------
+        for col in [
+            "timestamp", "timestamp_str",
+            "admindecision", "adminremarks", "status",
+            "adminupdatetimestamp"
+        ]:
             if col not in app_df.columns:
                 app_df[col] = ""
-        
-        # Fill missing timestamps
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        app_df["timestamp_str"] = app_df["timestamp_str"].replace("", now_str).fillna(now_str)
-        app_df["timestamp"] = app_df["timestamp"].replace("", now_str).fillna(now_str)
 
-        # Normalize for matching
+        # -----------------------------
+        # Normalize matching columns
+        # -----------------------------
         app_df["id"] = app_df["id"].astype(str).str.strip()
         app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce")
-        app_df["shiftperiod"] = app_df.get("shiftperiod", "").astype(str).str.lower()
-        app_df["shiftlevel"] = app_df.get("shiftlevel", "").astype(str).str.lower()
-        app_df["timestamp_str"] = app_df.get("timestamp_str", "").astype(str).str.strip()
+        app_df["shiftperiod"] = app_df["shiftperiod"].astype(str).str.lower()
+        app_df["shiftlevel"] = app_df["shiftlevel"].astype(str).str.lower()
+        app_df["timestamp_str"] = app_df["timestamp_str"].astype(str).str.strip()
 
-        # Create mask to identify row
-        mask = (
-            (app_df["id"] == id_) &
-            (app_df["date"].dt.strftime("%Y-%m-%d") == date_str) &
-            (app_df["shiftperiod"] == shift.lower()) &
-            (app_df["shiftlevel"] == level.lower())
-        )
+        # -----------------------------
+        # Build row match (SAFE)
+        # -----------------------------
+        mask = None
+
+        if timestamp:
+            mask = (app_df["timestamp_str"] == timestamp)
+
+        if mask is None or not mask.any():
+            mask = (
+                (app_df["id"] == id_) &
+                (app_df["date"].dt.strftime("%Y-%m-%d") == date_str) &
+                (app_df["shiftperiod"] == shift.lower()) &
+                (app_df["shiftlevel"] == level.lower())
+            )
 
         if not mask.any():
             return jsonify(success=False, error="Application not found"), 404
 
-        # Update row
-        app_df.loc[mask, ["admindecision", "adminremarks", "status"]] = [
-            admindecision, adminremarks, status
-        ]
-        app_df.loc[mask, "adminUpdateTimestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if timestamp:
-            app_df.loc[mask, "timestamp_str"] = timestamp
+        # -----------------------------
+        # Apply update (ONLY target row)
+        # -----------------------------
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        app_df.loc[mask, "admindecision"] = admindecision
+        app_df.loc[mask, "adminremarks"] = adminremarks
+        app_df.loc[mask, "status"] = status
+        app_df.loc[mask, "adminupdatetimestamp"] = now_str
+
+        # Fill timestamp_str ONLY if missing (old rows)
+        app_df.loc[mask & (app_df["timestamp_str"] == ""), "timestamp_str"] = now_str
+
+        # -----------------------------
         # Save safely
+        # -----------------------------
         save_excel_safe(app_df, APPLICATION_FILE)
 
-        # Recalculate totals in account.xlsx
+        # -----------------------------
+        # Recalculate totals
+        # -----------------------------
         recalculate_account_shift_totals()
 
-        # Write approved shifts to record file if not exists
+        # -----------------------------
+        # Write approved record once
+        # -----------------------------
         if admindecision.lower() == "approved":
-            write_shift_record_if_not_exists(app_df.loc[mask].iloc[0].to_dict())
+            write_shift_record_if_not_exists(
+                app_df.loc[mask].iloc[0].to_dict()
+            )
 
-        return jsonify(success=True, message=f"Application {admindecision} successfully updated")
+        return jsonify(success=True, message="Application updated successfully")
 
     except Exception as e:
         print("update_shift_application ERROR:", e)
-        return jsonify(success=False, error=str(e)), 500
+        return jsonify(success=False, error="Internal server error"), 500
 
 # Student coach clockIn clockOut
 @app.route("/student/attendance", methods=["GET", "POST"])
