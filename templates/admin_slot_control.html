@@ -8,9 +8,7 @@
 <body>
 <h1>Admin Slot Control</h1>
 
-<form method="get"
-      style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
-
+<form method="get" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
     <label>
         Year:
         <input type="number" name="year" value="{{ year }}">
@@ -55,17 +53,17 @@
         {% for slot in slots %}
         <tr>
             <td>{{ slot.date.strftime("%Y-%m-%d") }}</td>
-            <td>{{ slot.shiftPeriod }}</td>
-            <td>{{ slot.shiftLevel }}</td>
+            <td>{{ slot.shiftperiod }}</td>
+            <td>{{ slot.shiftlevel }}</td>
 
             <td>
                 <input type="checkbox"
-                       {% if slot.isOpen == 1 %}checked{% endif %}
+                       {% if slot.isopen == 1 %}checked{% endif %}
                        onchange="updateSlot(this)"
-                       data-field="isOpen"
+                       data-field="isopen"
                        data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
-                       data-shift="{{ slot.shiftPeriod }}"
-                       data-level="{{ slot.shiftLevel }}">
+                       data-shift="{{ slot.shiftperiod }}"
+                       data-level="{{ slot.shiftlevel }}">
             </td>
 
             <td>
@@ -74,18 +72,18 @@
                        onchange="updateSlot(this)"
                        data-field="onjobtrain"
                        data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
-                       data-shift="{{ slot.shiftPeriod }}"
-                       data-level="{{ slot.shiftLevel }}">
+                       data-shift="{{ slot.shiftperiod }}"
+                       data-level="{{ slot.shiftlevel }}">
             </td>
 
             <td>
                 <input type="checkbox"
-                       {% if slot.nightShift == 1 %}checked{% endif %}
+                       {% if slot.nightshift == 1 %}checked{% endif %}
                        onchange="updateSlot(this)"
-                       data-field="nightShift"
+                       data-field="nightshift"
                        data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
-                       data-shift="{{ slot.shiftPeriod }}"
-                       data-level="{{ slot.shiftLevel }}">
+                       data-shift="{{ slot.shiftperiod }}"
+                       data-level="{{ slot.shiftlevel }}">
             </td>
 
             <td>
@@ -94,8 +92,8 @@
                        onblur="updateSlot(this)"
                        data-field="remarks"
                        data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
-                       data-shift="{{ slot.shiftPeriod }}"
-                       data-level="{{ slot.shiftLevel }}">
+                       data-shift="{{ slot.shiftperiod }}"
+                       data-level="{{ slot.shiftlevel }}">
             </td>
         </tr>
         {% endfor %}
@@ -105,7 +103,6 @@
 
 <!-- ================= CALENDAR VIEW ================= -->
 {% if view == "calendar" %}
-
 <div class="calendar-grid">
 
     <!-- Day of Week Header -->
@@ -124,17 +121,17 @@
 
             {% for slot in day.shifts %}
             <div class="slot-admin">
-                <strong>{{ slot.shiftPeriod }} {{ slot.shiftLevel }}</strong>
+                <strong>{{ slot.shiftperiod }} {{ slot.shiftlevel }}</strong>
 
                 <label>
                     Open
                     <input type="checkbox"
-                           {% if slot.isOpen == 1 %}checked{% endif %}
+                           {% if slot.isopen == 1 %}checked{% endif %}
                            onchange="updateSlot(this)"
-                           data-field="isOpen"
+                           data-field="isopen"
                            data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
-                           data-shift="{{ slot.shiftPeriod }}"
-                           data-level="{{ slot.shiftLevel }}">
+                           data-shift="{{ slot.shiftperiod }}"
+                           data-level="{{ slot.shiftlevel }}">
                 </label>
 
                 <label>
@@ -143,20 +140,20 @@
                            {% if slot.onjobtrain == 1 %}checked{% endif %}
                            onchange="updateSlot(this)"
                            data-field="onjobtrain"
-                           data-date="{{ slot.date }}"
-                           data-shift="{{ slot.shiftPeriod }}"
-                           data-level="{{ slot.shiftLevel }}">
+                           data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
+                           data-shift="{{ slot.shiftperiod }}"
+                           data-level="{{ slot.shiftlevel }}">
                 </label>
 
                 <label>
                     Night
                     <input type="checkbox"
-                           {% if slot.nightShift == 1 %}checked{% endif %}
+                           {% if slot.nightshift == 1 %}checked{% endif %}
                            onchange="updateSlot(this)"
-                           data-field="nightShift"
-                           data-date="{{ slot.date }}"
-                           data-shift="{{ slot.shiftPeriod }}"
-                           data-level="{{ slot.shiftLevel }}">
+                           data-field="nightshift"
+                           data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
+                           data-shift="{{ slot.shiftperiod }}"
+                           data-level="{{ slot.shiftlevel }}">
                 </label>
             </div>
             {% endfor %}
