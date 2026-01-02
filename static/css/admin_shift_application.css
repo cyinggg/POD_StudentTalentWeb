@@ -48,15 +48,29 @@
     font-size: 0.9rem;
 }
 
-/* ------------------ Calendar ------------------ */
+/* ------------------ Calendar Container ------------------ */
 #calendarContainer {
     display: none;
 }
+
+/* Calendar grid: 7 columns for Mon-Sun */
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 5px;
 }
+
+/* Weekday header cells */
+.calendar-day-header {
+    font-weight: 600;
+    padding: 6px 0;
+    text-align: center;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+}
+
+/* Calendar day cells */
 .calendar-day {
     border: 1px solid #dee2e6;
     min-height: 120px;
@@ -65,16 +79,41 @@
     border-radius: 4px;
     position: relative;
     font-size: 0.85rem;
-}
-.calendar-day-header {
-    font-weight: 600;
-    padding: 4px 0;
-    text-align: center;
-    background-color: #e9ecef;
-    border-radius: 4px;
+    overflow-y: auto;
 }
 
-/* Shift badge in calendar */
+/* Highlight today */
+.calendar-day[data-today="true"] {
+    border: 2px solid #0d6efd;
+    background-color: #e7f1ff;
+}
+
+/* Days from other months (grayed out) */
+.calendar-day.other-month {
+    background-color: #f0f0f0;
+    color: #6c757d;
+}
+
+/* Empty padding cells */
+.calendar-day.empty {
+    background-color: transparent;
+    border: none;
+}
+
+/* Date number */
+.date-number {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+/* Summary of applications in a day */
+.day-summary {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-bottom: 4px;
+}
+
+/* ------------------ Shift badges ------------------ */
 .shift-badge {
     display: block;
     border-radius: 6px;
@@ -84,30 +123,66 @@
     font-size: 0.8rem;
     position: relative;
     background-color: #6c757d;
+    border-left: 5px solid transparent;
 }
+
+/* Shift types */
 .shift-badge.morning { background-color: #0d6efd; }
 .shift-badge.afternoon { background-color: #fd7e14; }
 .shift-badge.night { background-color: #6f42c1; }
-.shift-badge:hover { opacity: 0.9; }
 
-/* Inline editing inside calendar */
+/* Status indicators */
+.shift-badge.pending {
+    background-color: #ffc107;
+    color: #000;
+    border-left-color: #ff9800;
+}
+.shift-badge.approved {
+    background-color: #198754;
+}
+.shift-badge.rejected {
+    background-color: #dc3545;
+}
+.shift-badge.cancel {
+    background-color: #6c757d;
+}
+
+.shift-badge:hover {
+    opacity: 0.9;
+}
+
+/* OJT and Night labels */
+.badge-ojt, .badge-night {
+    font-size: 0.65rem;
+    padding: 1px 3px;
+    border-radius: 3px;
+    color: #fff;
+    margin-left: 2px;
+}
+.badge-ojt { background-color: #6f42c1; }
+.badge-night { background-color: #151414; }
+
+/* ------------------ Inline editing ------------------ */
 .decision-select-inline {
     width: 100%;
-    margin-top: 2px;
+    margin-top: 4px;
     font-size: 0.8rem;
 }
+
 .remarks-input-inline {
     width: 100%;
     font-size: 0.75rem;
-    margin-top: 2px;
+    margin-top: 4px;
     border-radius: 4px;
     padding: 2px 4px;
     resize: vertical;
 }
+
 .save-btn-inline {
-    margin-top: 2px;
+    margin-top: 4px;
     font-size: 0.75rem;
     padding: 2px 4px;
+    width: 100%;
 }
 
 /* ------------------ Modal ------------------ */

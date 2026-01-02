@@ -1,0 +1,136 @@
+/* =========================
+   Calendar Layout
+========================= */
+
+#calendarContainer {
+    display: block;
+    margin-top: 10px;
+}
+
+.calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+}
+
+/* =========================
+   Day Cells
+========================= */
+
+.day {
+    border: 1px solid #dee2e6;
+    min-height: 120px;
+    padding: 6px;
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    position: relative;
+    font-size: 0.85rem;
+    overflow: hidden;
+}
+
+/* Empty cells (previous / next month) */
+.day.empty {
+    background-color: #f8f9fa;
+    border: 1px solid #f8f9fa;
+}
+
+/* =========================
+   Weekday Header
+========================= */
+
+.day.header {
+    min-height: auto;
+    padding: 6px 0;
+    text-align: center;
+    font-weight: 600;
+    background-color: #e9ecef;
+    border-radius: 6px;
+}
+
+/* =========================
+   Today Highlight
+========================= */
+
+.day[data-today="true"] {
+    border: 2px solid #0d6efd;
+    background-color: #e7f1ff;
+}
+
+/* =========================
+   Date Number
+========================= */
+
+.date-number {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+
+/* =========================
+   Day Summary
+========================= */
+
+.day-summary {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-bottom: 4px;
+}
+
+/* =========================
+   Shift Badges
+========================= */
+
+.shift-badge {
+    display: block;
+    border-radius: 6px;
+    padding: 5px 6px;
+    margin-bottom: 4px;
+    color: #ffffff;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    word-wrap: break-word;
+}
+
+/* Morning */
+.shift-badge.shift-morning {
+    background-color: #0d6efd;
+}
+
+/* Afternoon */
+.shift-badge.shift-afternoon {
+    background-color: #fd7e14;
+}
+
+/* Night */
+.shift-badge.shift-night {
+    background-color: #6f42c1;
+}
+
+/* =========================
+   Shift Meta Info
+========================= */
+
+.shift-badge .small {
+    font-size: 0.7rem;
+    opacity: 0.95;
+}
+
+/* =========================
+   Remarks
+========================= */
+
+.shift-remarks {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.7rem;
+    opacity: 0.9;
+}
+
+/* =========================
+   Bootstrap Badge Overrides
+========================= */
+
+.badge {
+    font-size: 0.65rem;
+    margin-right: 2px;
+}

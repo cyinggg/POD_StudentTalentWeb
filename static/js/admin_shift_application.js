@@ -107,7 +107,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
     // ------------------ Calendar Inline Editing ------------------
     document.querySelectorAll(".save-btn-inline").forEach(btn => {
-        btn.addEventListener("click", function() {
+        btn.addEventListener("click", async function() {
             const shiftBadge = this.closest(".shift-badge");
             const key = shiftBadge.dataset.key;
             const select = shiftBadge.querySelector(".decision-select-inline");
@@ -115,8 +115,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
             const admindecision = select.value;
             const adminremarks = textarea.value;
-
-            const status = admindecision; // optional: same as table logic
+            const status = admindecision || "pending";
 
             const formData = new URLSearchParams();
             formData.append("key", key);
@@ -124,20 +123,31 @@ document.addEventListener("DOMContentLoaded", function() {
             formData.append("admindecision", admindecision);
             formData.append("adminremarks", adminremarks);
 
-            fetch("/admin/shift_application/update", {
-                method: "POST",
-                body: formData
-            })
-            .then(async res => {
+            try {
+                const res = await fetch("/admin/shift_application/update", {
+                    method: "POST",
+                    body: formData
+                });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "Server error");
+
                 showNotification(`Calendar: ${data.message}`, true);
 
-                // FORCE REFRESH TO GET UPDATED DATA
-                setTimeout(() => location.reload(), 300);
-                
-            })
-            .catch(e => showNotification(e.message || "Update failed", false));
+                // ----------- UPDATE UI IN PLACE -----------
+                shiftBadge.classList.remove("pending", "approved", "rejected", "cancel");
+                if (admindecision) shiftBadge.classList.add(admindecision.toLowerCase());
+                else shiftBadge.classList.add("pending");
+
+                // Update the badge text color for visibility (optional)
+                if (admindecision.toLowerCase() === "pending") {
+                    shiftBadge.style.color = "#000";
+                } else {
+                    shiftBadge.style.color = "#fff";
+                }
+
+            } catch (e) {
+                showNotification(e.message || "Update failed", false);
+            }
         });
     });
 

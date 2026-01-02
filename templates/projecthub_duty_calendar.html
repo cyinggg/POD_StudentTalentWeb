@@ -1,124 +1,97 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>ProjectHub Duty Calendar</title>
-    <style>
-        table {border-collapse: collapse; width: 100%;}
-        th, td {border: 1px solid #ccc; padding: 10px; vertical-align: top; height: 100px;}
-        th {background-color: #f2f2f2;}
-        td.other-month {background-color: #f9f9f9; color: #999;}
+<meta charset="UTF-8">
+<title>ProjectHub Duty Calendar</title>
 
-        /* Shift type colors */
-        .morning {background-color: #DFF2BF; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
-        .afternoon {background-color: #FEEFB3; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
-        .night {background-color: #FFBABA; padding:2px; margin:1px; border-radius:3px; cursor:pointer;}
+<link href="{{ url_for('static', filename='css/projecthub_duty_calendar.css') }}" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
-        /* Tooltip styling */
-        .tooltip {
-            position: relative;
-            display: inline-block;
-        }
-
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            width: max-content;
-            max-width: 200px;
-            background-color: #555;
-            color: #fff;
-            text-align: left;
-            border-radius: 5px;
-            padding: 5px;
-            position: absolute;
-            z-index: 1;
-            bottom: 125%;
-            left: 50%;
-            transform: translateX(-50%);
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 12px;
-        }
-
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        /* Legend styling */
-        .legend {
-            margin-top: 20px;
-        }
-
-        .legend-item {
-            display: inline-block;
-            margin-right: 20px;
-        }
-
-        .legend-color {
-            display: inline-block;
-            width: 15px;
-            height: 15px;
-            vertical-align: middle;
-            margin-right: 5px;
-            border: 1px solid #000;
-        }
-
-        .morning-legend {background-color: #DFF2BF;}
-        .afternoon-legend {background-color: #FEEFB3;}
-        .night-legend {background-color: #FFBABA;}
-    </style>
 </head>
 <body>
-    <h2>ProjectHub Duty Calendar - {{ year }} / {{ month }}</h2>
 
-    <div>
-        <a href="{{ url_for('projecthub_duty_calendar', month=month-1 if month>1 else 12, year=year-1 if month==1 else year) }}">Previous Month</a> |
-        <a href="{{ url_for('projecthub_duty_calendar') }}">Current Month</a> |
-        <a href="{{ url_for('projecthub_duty_calendar', month=month+1 if month<12 else 1, year=year+1 if month==12 else year) }}">Next Month</a>
+<div class="container my-4">
+    <h2 class="mb-4">ProjectHub Duty Calendar</h2>
+
+    <div class="mb-3 d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm"
+                onclick="window.history.back()">Back</button>
+        <a href="{{ url_for('home') }}"
+        class="btn btn-outline-primary btn-sm">Home</a>
     </div>
 
-    <table>
-        <tr>
-            <th>Mon</th>
-            <th>Tue</th>
-            <th>Wed</th>
-            <th>Thu</th>
-            <th>Fri</th>
-            <th>Sat</th>
-            <th>Sun</th>
-        </tr>
+    <!-- Month Navigation -->
+    <div class="mb-3">
+        <a href="{{ url_for('projecthub_duty_calendar',
+                            month=month-1 if month>1 else 12,
+                            year=year-1 if month==1 else year) }}"
+           class="btn btn-sm btn-outline-primary">
+            &laquo; Previous Month
+        </a>
 
-        {% for week in month_days %}
-        <tr>
-            {% for day in week %}
-            <td class="{% if day.month != month %}other-month{% endif %}">
-                <strong>{{ day.day }}</strong><br>
-                {% set day_str = day.strftime("%Y-%m-%d") %}
-                {% if day_str in shifts_per_date %}
-                    {% for s in shifts_per_date[day_str] %}
-                        <div class="tooltip {{ s.shiftPeriod }}">
-                            {{ s.name }}
-                            <span class="tooltiptext">
-                                Shift: {{ s.shiftPeriod|capitalize }}<br>
-                                Level: {{ s.shiftLevel }}
-                            </span>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            </td>
+        <span class="mx-2">{{ year }} - {{ "%02d"|format(month) }}</span>
+
+        <a href="{{ url_for('projecthub_duty_calendar',
+                            month=month+1 if month<12 else 1,
+                            year=year+1 if month==12 else year) }}"
+           class="btn btn-sm btn-outline-primary">
+            Next Month &raquo;
+        </a>
+    </div>
+
+    <!-- Calendar -->
+    <div id="calendarContainer">
+        <div class="calendar" id="calendarGrid">
+
+            <!-- Weekday headers (Monday first) -->
+            {% for wd in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}
+                <div class="day header">{{ wd }}</div>
             {% endfor %}
-        </tr>
-        {% endfor %}
-    </table>
 
-    <!-- Legend -->
-    <div class="legend">
-        <strong>Legend:</strong>
-        <div class="legend-item"><span class="legend-color morning-legend"></span> Morning</div>
-        <div class="legend-item"><span class="legend-color afternoon-legend"></span> Afternoon</div>
-        <div class="legend-item"><span class="legend-color night-legend"></span> Night</div>
+            <!-- Calendar days -->
+            {% for week in month_days %}
+                {% for day in week %}
+
+                    {% if day.month == month %}
+                        {% set date_str = day.strftime('%Y-%m-%d') %}
+                        {% set apps = shifts_per_date.get(date_str, []) %}
+
+                        <div class="day"
+                             data-date="{{ date_str }}"
+                             {% if day == today %}data-today="true"{% endif %}>
+
+                            <div class="date-number">{{ day.day }}</div>
+
+                            {% if apps %}
+                                <div class="day-summary">
+                                    {{ apps|length }} shift{{ 's' if apps|length > 1 }}
+                                </div>
+                            {% endif %}
+
+                            {% for app in apps %}
+                                <div class="shift-badge shift-{{ app['shiftperiod'] }}">
+
+                                    <strong>{{ app['name'] }}</strong>
+
+                                    <div class="small">
+                                        {{ app['shiftperiod']|capitalize }} • {{ app['shiftlevel']|upper }}
+                                    </div>
+
+                                </div>
+                            {% endfor %}
+
+                        </div>
+                    {% else %}
+                        <div class="day empty"></div>
+                    {% endif %}
+
+                {% endfor %}
+            {% endfor %}
+
+        </div>
     </div>
+</div>
 
-    <br>
-    <a href="/">Back to Home</a>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

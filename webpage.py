@@ -996,80 +996,52 @@ def admin_verify():
 # Projecthub duty calendar
 @app.route("/projecthub_duty_calendar")
 def projecthub_duty_calendar():
-    # Load shift application
+    # Load shift applications
     df = load_excel_safe(APPLICATION_FILE)
+    if df.empty:
+        return "No shift application data found"
 
-    # Only show approved shifts
-    df = df[df["admindecision"] == "Approved"]
+    df.columns = df.columns.str.strip()  # Remove extra spaces
+
+    # Only show approved shifts (case-insensitive)
+    df["admindecision"] = df["admindecision"].astype(str)
+    df = df[df["admindecision"].str.lower() == "approved"]
+
+    if df.empty:
+        return "No approved shifts found"
 
     # Convert date column to datetime
-    df["date"] = pd.to_datetime(df["date"])
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.dropna(subset=["date"])  # Drop rows with invalid dates
 
-    # Determine month/year to display from query parameters or default to current month
-    month = request.args.get("month")
-    year = request.args.get("year")
-
+    # Determine month/year to display
     today = datetime.today()
-    if not month or not year:
-        month = today.month
-        year = today.year
-    else:
-        month = int(month)
-        year = int(year)
+    month = request.args.get("month", type=int) or today.month
+    year = request.args.get("year", type=int) or today.year
 
-    # Create calendar for the month (weeks start on Monday)
-    cal = Calendar(firstweekday=calendar.MONDAY)  # Monday=0
+    # Calendar weeks (Monday first)
+    cal = calendar.Calendar(firstweekday=calendar.MONDAY)
     month_days = cal.monthdatescalendar(year, month)
 
-    # Build dictionary with shifts per date
+    # Build dictionary of approved shifts per date
     shifts_per_date = {}
     for _, row in df.iterrows():
         day_str = row["date"].strftime("%Y-%m-%d")
-        if day_str not in shifts_per_date:
-            shifts_per_date[day_str] = []
-        shifts_per_date[day_str].append({
+        shifts_per_date.setdefault(day_str, []).append({
             "name": row["name"],
-            "shiftperiod": row["shiftperiod"],  # morning / afternoon / night
-            "shiftlevel": row["shiftlevel"]
+            "shiftperiod": str(row.get("shiftperiod", "")).lower(),  # morning/afternoon/night
+            "shiftlevel": str(row.get("shiftlevel", "")).lower(),
+            "adminremarks": str(row.get("adminremarks", ""))  # show remarks
         })
 
+    # Pass to template
     return render_template(
         "projecthub_duty_calendar.html",
         month=month,
         year=year,
         month_days=month_days,
-        shifts_per_date=shifts_per_date
-    )
-
-# ==========================
-# UPLOAD DOWNLOAD EXCEL
-# ==========================
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, get_flashed_messages, send_from_directory
-from werkzeug.utils import secure_filename
-
-ALLOWED_EXTENSIONS = {"xlsx"}
-
-def allowed_file(filename):
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
-# Route to render page
-@app.route("/admin/manage_excels")
-def admin_manage_excels():
-    excel_files = [
-        "account.xlsx",
-        "slot_control.xlsx",
-        "shift_application.xlsx",
-        "shift_record.xlsx",
-        "shift_verify.xlsx"
-    ]
-    flash_messages = [
-        {"category": category, "message": message}
-        for category, message in get_flashed_messages(with_categories=True)
-    ]
-    return render_template(
-        "admin_manage_excel.html",
-        excel_files=excel_files,
-        flash_messages=flash_messages
+        shifts_per_date=shifts_per_date,
+        today=today.date()
     )
 
 # Upload

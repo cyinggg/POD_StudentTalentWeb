@@ -189,47 +189,82 @@
 
     <!-- ---------------- CALENDAR VIEW ---------------- -->
     <div id="calendarContainer" style="display:none;">
-        <div class="calendar" id="calendarGrid">
+        <div class="calendar-grid" id="calendarGrid">
 
-            {# Weekday headers #}
+            <!-- Weekday headers (Monday first) -->
             {% for wd in ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] %}
-                <div class="day"><strong>{{ wd }}</strong></div>
+            <div class="calendar-day-header">{{ wd }}</div>
             {% endfor %}
 
-            {# Calendar generation #}
-            {# Use month_days passed from Flask route #}
+            <!-- Calendar days -->
             {% for week in month_days %}
                 {% for day in week %}
                     {% if day %}
-                        {% set date_str = day.strftime('%Y-%m-%d') %}
-                        <div class="day" data-date="{{ date_str }}">
-                            <div class="date-number">{{ day.day }}</div>
-                            {% for app in calendar_data.get(date_str, []) %}
-                                <div class="shift-badge shift-{{ app['shift'] | lower }}">
-                                    {{ app['name'] }} - {{ app['shift'] }} ({{ app['level'] }})
-                                    {% if app['onjobtrain'] %}<span class="badge-ojt">OJT</span>{% endif %}
-                                    {% if app['nightShift'] %}<span class="badge-night">Night</span>{% endif %}
-                                    <br>
-                                    <select class="form-select form-select-sm decision-select-inline mt-1">
-                                        <option value="" {% if not app['admindecision'] %}selected{% endif %}></option>
-                                        <option value="approved" {% if app['admindecision']=='approved' %}selected{% endif %}>Approved</option>
-                                        <option value="rejected" {% if app['admindecision']=='rejected' %}selected{% endif %}>Rejected</option>
-                                        <option value="pending" {% if app['admindecision']=='pending' %}selected{% endif %}>Pending</option>
-                                        <option value="cancel" {% if app['admindecision']=='cancel' %}selected{% endif %}>Cancel</option>
-                                    </select>
-                                    <textarea class="form-control form-control-sm mt-1 remarks-input-inline">{{ app['adminremarks'] }}</textarea>
-                                    <button class="btn btn-sm btn-primary save-btn-inline mt-1"
-                                            data-key="{{ app['id'] }}_{{ date_str }}_{{ app['shift'] }}_{{ app['level'] }}">
-                                        Save
-                                    </button>
-                                </div>
-                            {% endfor %}
+                    {% set date_str = day.strftime('%Y-%m-%d') %}
+                    {% set apps = calendar_data.get(date_str, []) %}
+                    {% set in_month = (day.month == month) %}
+
+                    <div class="calendar-day {% if not in_month %}other-month{% endif %}"
+                        data-date="{{ date_str }}"
+                        {% if day == today %}data-today="true"{% endif %}>
+
+                        <div class="date-number">{{ day.day }}</div>
+
+                        {% if apps %}
+                        <div class="day-summary small text-muted mb-1">
+                            {{ apps | length }} application{{ 's' if apps|length > 1 }}
+                            • {{ apps | selectattr('admindecision', 'equalto', 'pending') | list | length }} pending
                         </div>
+                        {% endif %}
+
+                        {% for app in apps %}
+                        {% set decision = app['admindecision'] if app['admindecision'] else 'pending' %}
+
+                        <div class="shift-badge
+                                    shift-{{ app['shift'] | lower }}
+                                    {{ decision | lower }}">
+                            <strong>{{ app['name'] }}</strong>
+                            <div class="small">
+                                {{ app['shift'] | capitalize }} • {{ app['level'] | upper }}
+                            </div>
+
+                            {% if app.get('onjobtrain') %}
+                            <span class="badge-ojt">OJT</span>
+                            {% endif %}
+
+                            {% if app.get('nightShift') %}
+                            <span class="badge-night">Night</span>
+                            {% endif %}
+
+                            <!-- Decision -->
+                            <select class="form-select form-select-sm decision-select-inline mt-1">
+                                <option value="" {% if not app['admindecision'] %}selected{% endif %}></option>
+                                <option value="approved" {% if decision == 'approved' %}selected{% endif %}>Approved</option>
+                                <option value="rejected" {% if decision == 'rejected' %}selected{% endif %}>Rejected</option>
+                                <option value="pending" {% if decision == 'pending' %}selected{% endif %}>Pending</option>
+                                <option value="cancel" {% if decision == 'cancel' %}selected{% endif %}>Cancel</option>
+                            </select>
+
+                            <!-- Remarks -->
+                            <textarea class="form-control form-control-sm mt-1 remarks-input-inline"
+                                    placeholder="Admin remarks...">{{ app['adminremarks'] or '' }}</textarea>
+
+                            <!-- Save -->
+                            <button class="btn btn-sm btn-primary save-btn-inline mt-1"
+                                    data-key="{{ app['id'] }}_{{ date_str }}_{{ app['shift'] }}_{{ app['level'] }}">
+                                Save
+                            </button>
+                        </div>
+                        {% endfor %}
+                    </div>
+
                     {% else %}
-                        <div class="day"></div>
+                    <!-- Empty cell for padding before first day or after last day -->
+                    <div class="calendar-day empty"></div>
                     {% endif %}
                 {% endfor %}
             {% endfor %}
+
         </div>
     </div>
 
