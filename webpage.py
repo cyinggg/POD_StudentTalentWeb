@@ -331,6 +331,41 @@ def update_shift():
         "nightShift": nightShift
     })
 
+# Update totalApprovedShift and totalPendingShift
+def recalculate_account_shift_totals():
+    app_df = load_excel_safe(APPLICATION_FILE)
+    acc_df = load_excel_safe(ACCOUNT_FILE)
+
+    if app_df.empty or acc_df.empty:
+        print("skipping totals update — empty Excel")
+        return
+
+    # Normalize
+    app_df["id"] = app_df["id"].astype(str)
+    app_df["admindecision"] = app_df["admindecision"].astype(str).str.lower()
+    app_df["status"] = app_df["status"].astype(str).str.lower()
+
+    acc_df["ID"] = acc_df["ID"].astype(str)
+
+    # Reset totals
+    acc_df["totalApprovedShift"] = 0
+    acc_df["totalPendingShift"] = 0
+
+    # Count per user
+    for user_id in acc_df["ID"]:
+        acc_df.loc[acc_df["ID"] == user_id, "totalApprovedShift"] = (
+            (app_df["id"] == user_id) &
+            (app_df["admindecision"] == "approved")
+        ).sum()
+
+        acc_df.loc[acc_df["ID"] == user_id, "totalPendingShift"] = (
+            (app_df["id"] == user_id) &
+            (app_df["status"] == "pending")
+        ).sum()
+
+    save_excel_safe(acc_df, ACCOUNT_FILE)
+    print("account.xlsx totals updated")
+
 # --- Eligibility check function ---
 def check_booking_eligibility(user, slot):
     """
@@ -591,7 +626,12 @@ def student_coach_shift_action():
             "cancelrequest": 0
         }
         app_df = pd.concat([app_df, pd.DataFrame([new_app])], ignore_index=True)
+
         save_excel_safe(app_df, APPLICATION_FILE)
+
+        # ---- UPDATE ACCOUNT TOTALS ----
+        recalculate_account_shift_totals()
+
         return jsonify(success=True)
 
     elif action == "cancel":
@@ -604,13 +644,25 @@ def student_coach_shift_action():
         if current_status == "pending":
             # Remove pending application
             app_df = app_df.drop(idx)
+
             save_excel_safe(app_df, APPLICATION_FILE)
+
+            # ---- UPDATE ACCOUNT TOTALS ----
+            recalculate_account_shift_totals()
+
             return jsonify(success=True)
+        
         elif current_status == "approved":
             # Mark cancel request for admin approval
             app_df.at[idx, "cancelrequest"] = 1
+
             save_excel_safe(app_df, APPLICATION_FILE)
+
+            # ---- UPDATE ACCOUNT TOTALS ----
+            recalculate_account_shift_totals()
+
             return jsonify(success=True, message="Cancel request sent to admin for approval")
+        
         else:
             return jsonify(success=False, error="Cannot cancel this shift"), 400
 
@@ -835,6 +887,9 @@ def update_shift_application():
             app_df.loc[mask, "timestamp_str"] = timestamp
 
         save_excel_safe(app_df, APPLICATION_FILE)
+
+        # ---- UPDATE ACCOUNT TOTALS ----
+        recalculate_account_shift_totals()
 
         # ------------------ WRITE APPROVED SHIFT TO RECORD ------------------
         if admindecision.lower() == "approved":

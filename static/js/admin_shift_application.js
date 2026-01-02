@@ -96,6 +96,10 @@ document.addEventListener("DOMContentLoaded", function() {
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "Server error");
                 showNotification(`Table: ${data.message}`, true);
+
+                // FORCE REFRESH TO GET UPDATED DATA
+                setTimeout(() => location.reload(), 300);
+                
             })
             .catch(e => showNotification(e.message || "Update failed", false));
         });
@@ -128,6 +132,10 @@ document.addEventListener("DOMContentLoaded", function() {
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || "Server error");
                 showNotification(`Calendar: ${data.message}`, true);
+
+                // FORCE REFRESH TO GET UPDATED DATA
+                setTimeout(() => location.reload(), 300);
+                
             })
             .catch(e => showNotification(e.message || "Update failed", false));
         });
