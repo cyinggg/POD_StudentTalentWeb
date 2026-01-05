@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Verify Student Coach Shifts</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_verify_shifts.css') }}">
+</head>
+<body>
+
+<!-- FIXED NAV -->
+<div class="nav">
+    <button onclick="history.back()">Back</button>
+    <a href="{{ url_for('admin_home') }}"><button>Home</button></a>
+</div>
+
+<div class="container">
+    <h2>Verify Student Coach Shifts</h2>
+
+    <p>Admin: {{ user.name }}</p>
+    <p class="sub-time">
+        Current Time (SG): <span id="currentTime">{{ now_sg }}</span>
+    </p>
+    
+    <div class="table-container">
+        <table class="verify-table">
+            <thead>
+            <tr>
+                <th>Month</th>
+                <th>Date</th>
+                <th>Day</th>
+                <th>Shift</th>
+                <th>Level</th>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>Clock In</th>
+                <th>Clock Out</th>
+                <th>Shift Start</th>
+                <th>Shift End</th>
+                <th>Hours</th>
+                <th>Admin Remarks</th>
+                <th>Signature</th>
+                <th>Verify</th>
+            </tr>
+            </thead>
+
+            <tbody>
+            {% for s in shifts %}
+            <tr>
+                <td>{{ s.month }}</td>
+                <td>{{ s.date }}</td>
+                <td>{{ s.day }}</td>
+                <td>{{ s.shiftperiod }}</td>
+                <td>{{ s.shiftlevel }}</td>
+                <td>{{ s.id }}</td>
+                <td>{{ s.name }}</td>
+                <td>{{ s.clockin }}</td>
+                <td>{{ s.clockout }}</td>
+                <td>{{ s.shiftstart }}</td>
+                <td>{{ s.shiftend }}</td>
+                <td>{{ s.shifthours }}</td>
+
+                <td>
+                    <input type="text" id="remarks_{{ loop.index }}" placeholder="Remarks">
+                </td>
+
+                <td>
+                    <canvas id="canvas_{{ loop.index }}" class="sign-canvas"></canvas>
+                    <div class="sign-controls">
+                        <button onclick="clearCanvas({{ loop.index }})">Clear</button>
+                        <input type="file" id="file_{{ loop.index }}">
+                    </div>
+                </td>
+
+                <td>
+                    <button class="btn-verify"
+                        onclick="verifyShift(
+                            '{{ s.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}',
+                            {{ loop.index }}
+                        )">
+                        Verify
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function updateTime() {
+    const now = new Date().toLocaleString("en-SG", {
+        timeZone: "Asia/Singapore",
+        hour12: false
+    });
+    document.getElementById("currentTime").textContent = now;
+}
+setInterval(updateTime, 1000);
+</script>
+
+<script src="{{ url_for('static', filename='js/admin_verify_shifts.js') }}"></script>
+</body>
+</html>

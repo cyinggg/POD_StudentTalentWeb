@@ -1,0 +1,88 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #f5f7fa;
+    margin: 0;
+    padding-top: 70px;
+}
+
+/* Fixed Nav */
+.nav {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    background: #1f2937;
+    padding: 10px;
+    z-index: 1000;
+}
+
+.nav button {
+    background: #fff;
+    border: none;
+    padding: 6px 12px;
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+/* Layout */
+.container {
+    padding: 20px;
+}
+
+.sub-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+.verify-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+}
+
+.verify-table th,
+.verify-table td {
+    border: 1px solid #ccc;
+    padding: 6px;
+    font-size: 13px;
+    text-align: center;
+}
+
+.verify-table th {
+    background: #e5e7eb;
+}
+
+/* Signature */
+.sign-canvas {
+    border: 1px solid #333;
+    width: 180px;
+    height: 70px;
+    cursor: crosshair;
+    background: #fff;
+}
+
+.sign-controls {
+    margin-top: 4px;
+}
+
+.sign-controls button {
+    font-size: 11px;
+    padding: 3px 6px;
+}
+
+.btn-verify {
+    background: #16a34a;
+    color: #fff;
+    border: none;
+    padding: 6px 10px;
+    cursor: pointer;
+}
+
+.btn-verify:hover {
+    background: #15803d;
+}

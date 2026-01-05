@@ -12,6 +12,9 @@ import calendar
 from collections import defaultdict
 import tempfile
 import shutil
+from zoneinfo import ZoneInfo
+from werkzeug.utils import secure_filename
+from flask import send_from_directory
 
 # Initialize App
 app = Flask(__name__)
@@ -1001,97 +1004,295 @@ def update_shift_application():
         print("update_shift_application ERROR:", e)
         return jsonify(success=False, error="Internal server error"), 500
 
-# Student coach clockIn clockOut
-@app.route("/student/attendance", methods=["GET", "POST"])
+# Student coach attendance page
+SG_TZ = ZoneInfo("Asia/Singapore")
+def now_sg():
+    return datetime.now(SG_TZ).strftime("%Y-%m-%d %H:%M:%S")
+
+@app.route("/student/attendance")
 def student_attendance():
-    if "user" not in session or session["user"]["role"] != "student":
+    user = session.get("user")
+    if user is None or user.get("role") != "student coach":
         return redirect(url_for("student_login"))
 
-    user = session["user"]
-    df = load_excel_safe(RECORD_FILE)  # shift_record.xlsx
-    df = df.fillna("")
+    sid = str(user["id"])
+    df = load_excel_safe(RECORD_FILE)
 
-    if request.method == "POST":
-        date = request.form["date"]
-        shiftPeriod = request.form["shiftPeriod"]
+    if df.empty:
+        df = pd.DataFrame(columns=[
+            "indexshiftverify", "timestamp", "applicationtimestamp",
+            "id", "name", "month", "date", "day",
+            "shiftperiod", "shiftlevel",
+            "clockin", "clockout",
+            "shiftstart", "shiftend", "shifthours",
+            "remarks"
+        ])
 
-        # Check if record exists
-        mask = (df["ID"].astype(str) == str(user["id"])) & \
-               (df["date"] == date) & \
-               (df["shiftPeriod"] == shiftPeriod)
+    df.columns = df.columns.str.strip().str.lower()
+    df["id"] = df["id"].astype(str)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
 
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # Ensure new columns exist (do NOT overwrite)
+    for col in ["shiftstart", "shiftend", "shifthours", "remarks"]:
+        if col not in df.columns:
+            df[col] = ""
 
-        if mask.any():
-            # Update clockOut
-            df.loc[mask, "clockOut"] = now_str
-            df.loc[mask, "remarks"] = request.form.get("remarks", "")
-        else:
-            # New record: Clock In
-            new_row = {
-                "indexShiftVerify": len(df)+1,
-                "timestamp": now_str,
-                "ID": user["id"],
-                "name": user["name"],
-                "month": date[:7],
-                "date": date,
-                "day": datetime.strptime(date, "%Y-%m-%d").strftime("%A"),
-                "shiftPeriod": shiftPeriod,
-                "shiftLevel": request.form.get("shiftLevel", "L3"),
-                "clockIn": now_str,
-                "clockOut": "",
-                "remarks": request.form.get("remarks", "")
-            }
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    my_shifts = df[df["id"] == sid].copy()
 
-        save_excel_safe(df, RECORD_FILE)
-        return render_template("student_attendance.html", success="Attendance recorded!", records=df.to_dict(orient="records"))
+    # CRITICAL NORMALIZATION FOR TEMPLATE
+    for col in ["clockin", "clockout", "shiftstart", "shiftend", "remarks"]:
+        if col not in my_shifts.columns:
+            my_shifts[col] = ""
 
-    return render_template("student_attendance.html", records=df.to_dict(orient="records"))
+        my_shifts[col] = (
+            my_shifts[col]
+            .fillna("") # remove NaN / NaT
+            .astype(str)
+            .replace("nan", "")
+            .replace("NaT", "")
+            .str.strip()
+        )
 
-# Student coach / Admin verification
-@app.route("/admin/verify", methods=["GET", "POST"])
-def admin_verify():
-    if "user" not in session or session["user"]["role"] != "admin":
+    # shifthours
+    if "shifthours" not in my_shifts.columns:
+        my_shifts["shifthours"] = ""
+
+    return render_template(
+        "student_attendance.html",
+        user=user,
+        shifts=my_shifts.to_dict("records"),
+        now_time=now_sg()
+    )
+
+# Student coach clockIn clockOut
+@app.route("/student/attendance/clock", methods=["POST"])
+def student_clock_action():
+    user = session.get("user")
+    if user is None or user.get("role") != "student coach":
+        return jsonify(success=False, error="Unauthorized"), 403
+
+    sid = str(user["id"])
+    action = request.form.get("action")  # clockin / clockout
+    key = request.form.get("key")
+    remarks = (request.form.get("remarks") or "").strip()
+
+    if not action or not key:
+        return jsonify(success=False, error="Missing data"), 400
+
+    try:
+        _, date_str, shift, level = key.split("_")
+    except ValueError:
+        return jsonify(success=False, error="Invalid key"), 400
+
+    df = load_excel_safe(RECORD_FILE)
+    if df.empty:
+        return jsonify(success=False, error="No shift records found"), 404
+
+    df.columns = df.columns.str.strip().str.lower()
+    df["id"] = df["id"].astype(str)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+
+    mask = (
+        (df["id"] == sid) &
+        (df["date"] == date_str) &
+        (df["shiftperiod"].astype(str).str.lower() == shift.lower()) &
+        (df["shiftlevel"].astype(str).str.lower() == level.lower())
+    )
+
+    if not mask.any():
+        return jsonify(success=False, error="Shift record not found"), 404
+
+    now_time = now_sg()
+
+    if action == "clockin":
+        if df.loc[mask, "clockin"].notna().any():
+            return jsonify(success=False, error="Already clocked in"), 400
+        df.loc[mask, "clockin"] = now_time
+
+    elif action == "clockout":
+        if df.loc[mask, "clockin"].isna().any():
+            return jsonify(success=False, error="Clock in first"), 400
+        if df.loc[mask, "clockout"].notna().any():
+            return jsonify(success=False, error="Already clocked out"), 400
+        df.loc[mask, "clockout"] = now_time
+
+    else:
+        return jsonify(success=False, error="Invalid action"), 400
+
+    if remarks:
+        df.loc[mask, "remarks"] = remarks
+
+    save_excel_safe(df, RECORD_FILE)
+
+    return jsonify(success=True, time=now_time)
+
+# Student coach attendance clock in clock out save without page
+@app.route("/student/attendance/save", methods=["POST"])
+def student_attendance_save():
+    user = session.get("user")
+    if user is None or user.get("role") != "student coach":
+        return jsonify(success=False, error="Unauthorized"), 403
+
+    sid = str(user["id"])
+    key = request.form.get("key")
+    shiftstart = request.form.get("shiftstart", "").strip()
+    shiftend = request.form.get("shiftend", "").strip()
+    remarks = request.form.get("remarks", "").strip()
+
+    try:
+        _, date_str, shift, level = key.split("_")
+    except Exception:
+        return jsonify(success=False, error="Invalid key"), 400
+
+    df = load_excel_safe(RECORD_FILE)
+    df.columns = df.columns.str.strip().str.lower()
+    df["id"] = df["id"].astype(str)
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+
+    mask = (
+        (df["id"] == sid) &
+        (df["date"] == date_str) &
+        (df["shiftperiod"] == shift) &
+        (df["shiftlevel"] == level)
+    )
+
+    if not mask.any():
+        return jsonify(success=False, error="Shift not found"), 404
+
+    # Save fields
+    df.loc[mask, "shiftstart"] = shiftstart
+    df.loc[mask, "shiftend"] = shiftend
+    df.loc[mask, "remarks"] = remarks
+
+    # Auto calculate shift hours
+    try:
+        if shiftstart and shiftend:
+            start = datetime.strptime(shiftstart, "%H:%M")
+            end = datetime.strptime(shiftend, "%H:%M")
+            hours = (end - start).seconds / 3600
+            df.loc[mask, "shifthours"] = round(hours, 2)
+    except Exception:
+        pass  # never crash user input
+
+    save_excel_safe(df, RECORD_FILE)
+    return jsonify(success=True)
+
+# Admin verify student coach shift
+SG_TZ = ZoneInfo("Asia/Singapore")
+
+def now_sg():
+    return datetime.now(SG_TZ).strftime("%Y-%m-%d %H:%M:%S")
+
+@app.route("/admin/verify_shifts")
+def admin_verify_shifts():
+    user = session.get("user")
+    if not user or user.get("role") != "admin":
         return redirect(url_for("admin_login"))
 
-    df = load_excel_safe(VERIFY_FILE).fillna("")
-    record_df = load_excel_safe(RECORD_FILE).fillna("")
+    rec_df = load_excel_safe(RECORD_FILE)
+    if rec_df.empty:
+        shifts = []
+    else:
+        rec_df.columns = rec_df.columns.str.strip().str.lower()
+        shifts = rec_df.to_dict("records")
 
-    if request.method == "POST":
-        index = int(request.form["index"])
-        studentCoachName = request.form.get("studentCoachName", "")
-        studentCoachIn = request.form.get("studentCoachIn", "")
-        studentCoachOut = request.form.get("studentCoachOut", "")
-        staffName = session["user"]["name"]
-        staffSignature = request.form.get("staffSignature", "")
-        staffRemarks = request.form.get("staffRemarks", "")
+    return render_template(
+        "admin_verify_shifts.html",
+        user=user,
+        shifts=shifts,
+        now_sg=now_sg()
+    )
 
-        if index >= 0 and index < len(record_df):
-            shift = record_df.iloc[index]
-            new_row = {
-                "indexShiftRecord": index+1,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "ID": shift["id"],
-                "name": shift["name"],
-                "month": shift["month"],
-                "date": shift["date"],
-                "day": shift["day"],
-                "shiftPeriod": shift["shiftPeriod"],
-                "shiftLevel": shift["shiftLevel"],
-                "studentCoachName": studentCoachName,
-                "studentCoachIn": studentCoachIn,
-                "studentCoachOut": studentCoachOut,
-                "staffName": staffName,
-                "staffSignature": staffSignature,
-                "staffRemarks": staffRemarks
-            }
-            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-            save_excel_safe(df, VERIFY_FILE)
+# Admin AJAX verify and save sign
+@app.route("/admin/verify_shifts/save", methods=["POST"])
+def admin_verify_shift_save():
+    user = session.get("user")
+    if not user or user.get("role") != "admin":
+        return jsonify(success=False, error="Unauthorized"), 403
 
-        return redirect(url_for("admin_verify"))
+    key = request.form.get("key")
+    remarks = request.form.get("remarks", "").strip()
+    canvas_data = request.form.get("canvasData")
+    file = request.files.get("staffsign")
 
-    return render_template("admin_verify.html", records=record_df.to_dict(orient="records"))
+    if not key:
+        return jsonify(success=False, error="Missing key"), 400
+
+    try:
+        sid, date_str, shift, level = key.split("_")
+    except ValueError:
+        return jsonify(success=False, error="Invalid key"), 400
+
+    rec_df = load_excel_safe(RECORD_FILE)
+    rec_df.columns = rec_df.columns.str.strip().str.lower()
+    rec_df["id"] = rec_df["id"].astype(str)
+    rec_df["date"] = pd.to_datetime(rec_df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+
+    mask = (
+        (rec_df["id"] == sid) &
+        (rec_df["date"] == date_str) &
+        (rec_df["shiftperiod"] == shift) &
+        (rec_df["shiftlevel"] == level)
+    )
+
+    if not mask.any():
+        return jsonify(success=False, error="Shift not found"), 404
+
+    row = rec_df.loc[mask].iloc[0]
+
+    # ----- Save signature -----
+    os.makedirs("static/signatures", exist_ok=True)
+    sign_filename = ""
+
+    if canvas_data:
+        import base64
+        img_data = canvas_data.split(",")[1]
+        sign_filename = f"{sid}_{date_str}_{shift}_{level}.png"
+        with open(os.path.join("static/signatures", sign_filename), "wb") as f:
+            f.write(base64.b64decode(img_data))
+
+    elif file:
+        ext = os.path.splitext(file.filename)[1]
+        sign_filename = f"{sid}_{date_str}_{shift}_{level}{ext}"
+        file.save(os.path.join("static/signatures", sign_filename))
+
+    else:
+        return jsonify(success=False, error="Signature required"), 400
+
+    verify_df = load_excel_safe(VERIFY_FILE)
+    if verify_df.empty:
+        verify_df = pd.DataFrame(columns=[
+            "indexshiftrecord", "timestamp", "month", "date", "day",
+            "shiftperiod", "shiftlevel", "studentcoachid", "studentcoachname",
+            "clockin", "clockout", "shiftstart", "shiftend", "shifthour",
+            "staffname", "staffsign", "staffremarks"
+        ])
+
+    verify_df.columns = verify_df.columns.str.strip().str.lower()
+
+    verify_df = pd.concat([verify_df, pd.DataFrame([{
+        "indexshiftrecord": len(verify_df) + 1,
+        "timestamp": now_sg(),
+        "month": row.get("month", ""),
+        "date": row.get("date", ""),
+        "day": row.get("day", ""),
+        "shiftperiod": row.get("shiftperiod", ""),
+        "shiftlevel": row.get("shiftlevel", ""),
+        "studentcoachid": row.get("id", ""),
+        "studentcoachname": row.get("name", ""),
+        "clockin": row.get("clockin", ""),
+        "clockout": row.get("clockout", ""),
+        "shiftstart": row.get("shiftstart", ""),
+        "shiftend": row.get("shiftend", ""),
+        "shifthour": row.get("shifthours", ""),
+        "staffname": user.get("name"),
+        "staffsign": sign_filename,
+        "staffremarks": remarks
+    }])], ignore_index=True)
+
+    save_excel_safe(verify_df, VERIFY_FILE)
+
+    return jsonify(success=True)
 
 # Projecthub duty calendar
 @app.route("/projecthub_duty_calendar")
@@ -1155,6 +1356,15 @@ def projecthub_duty_calendar():
     )
 
 # Mange excel file
+# --- Whitelist of allowed Excel files ---
+ALLOWED_EXCEL_FILES = {
+    "account.xlsx",
+    "slot_control.xlsx",
+    "shift_application.xlsx",
+    "shift_record.xlsx",
+    "shift_verify.xlsx",
+}
+
 @app.route("/admin/manage_excels")
 def admin_manage_excels():
     user = session.get("user")
@@ -1187,40 +1397,70 @@ def admin_manage_excels():
 # Upload
 @app.route("/admin/upload_excel", methods=["POST"])
 def admin_upload_excel():
+    user = session.get("user")
+
+    # --- Admin guard ---
+    if not user or user.get("role") != "admin":
+        flash("Unauthorized access", "error")
+        return redirect(url_for("admin_login"))
+
     file = request.files.get("excel_file")
 
     if not file or file.filename == "":
         flash("No file selected", "error")
         return redirect(url_for("admin_manage_excels"))
 
-    # Sanitize filename (CRITICAL for security)
     filename = secure_filename(file.filename)
 
-    # Optional: only allow Excel files
+    # --- Extension check ---
     if not filename.lower().endswith((".xlsx", ".xls")):
         flash("Only Excel files are allowed", "error")
+        return redirect(url_for("admin_manage_excels"))
+
+    # --- System file whitelist (IMPORTANT) ---
+    if filename not in ALLOWED_EXCEL_FILES:
+        flash("This Excel file is not allowed to be uploaded", "error")
         return redirect(url_for("admin_manage_excels"))
 
     os.makedirs(DATA_FOLDER, exist_ok=True)
     save_path = os.path.join(DATA_FOLDER, filename)
 
-    file.save(save_path)
+    try:
+        file.save(save_path)
+        flash(f"{filename} uploaded successfully", "success")
+    except Exception as e:
+        flash(f"Upload failed: {e}", "error")
 
-    flash(f"{filename} uploaded successfully", "success")
     return redirect(url_for("admin_manage_excels"))
 
 # Download
-@app.route("/admin/download/<path:filename>")
+@app.route("/admin/download_excel/<filename>")
 def admin_download_excel(filename):
-    try:
-        return send_from_directory(
-            DATA_FOLDER,
-            filename,
-            as_attachment=True
-        )
-    except FileNotFoundError:
-        flash(f"{filename} not found", "error")
+    user = session.get("user")
+
+    # --- Admin guard ---
+    if not user or user.get("role") != "admin":
+        flash("Unauthorized access", "error")
+        return redirect(url_for("admin_login"))
+
+    filename = secure_filename(filename)
+
+    # --- Only allow known Excel files ---
+    if filename not in ALLOWED_EXCEL_FILES:
+        flash("Invalid file request", "error")
         return redirect(url_for("admin_manage_excels"))
+
+    file_path = os.path.join(DATA_FOLDER, filename)
+
+    if not os.path.exists(file_path):
+        flash("File not found", "error")
+        return redirect(url_for("admin_manage_excels"))
+
+    return send_from_directory(
+        DATA_FOLDER,
+        filename,
+        as_attachment=True
+    )
 
 # ==========================
 # Debug print all routes

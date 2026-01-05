@@ -1,58 +1,107 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Attendance</title>
+    <title>Student Attendance</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/student_attendance.css') }}">
 </head>
 <body>
-    <h2>Clock In / Clock Out</h2>
 
-    {% if success %}
-        <p style="color:green;">{{ success }}</p>
+<div class="nav">
+    <button onclick="history.back()">Back</button>
+    <a href="{{ url_for('student_home') }}">Home</a>
+</div>
+
+<h2>Clock In / Clock Out</h2>
+<p><strong>{{ user.name }}</strong></p>
+<p>Current Time (SG): <span id="now">{{ now_time }}</span></p>
+
+<table class="attendance-table">
+<thead>
+<tr>
+  <th>Date</th>
+  <th>Shift</th>
+  <th>Clock In</th>
+  <th>Clock Out</th>
+  <th>Shift Start</th>
+  <th>Shift End</th>
+  <th>Hours</th>
+  <th>Remarks</th>
+  <th>Save</th>
+</tr>
+</thead>
+
+<tbody>
+{% for s in shifts %}
+<tr>
+  <td>{{ s.date }}</td>
+  <td>{{ s.shiftperiod }} ({{ s.shiftlevel }})</td>
+
+  <!-- CLOCK IN -->
+  <td>
+    {% if s.clockin %}
+      {{ s.clockin }}
+    {% else %}
+      <button class="btn-clockin"
+        onclick="clockAction(
+          'clockin',
+          '{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}'
+        )">
+        Clock In
+      </button>
     {% endif %}
+  </td>
 
-    <form method="POST">
-        <label>Date (YYYY-MM-DD):</label><br>
-        <input type="date" name="date" required><br><br>
+  <!-- CLOCK OUT -->
+  <td>
+    {% if s.clockout %}
+      {{ s.clockout }}
+    {% else %}
+      <button class="btn-clockout"
+        onclick="clockAction(
+          'clockout',
+          '{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}'
+        )">
+        Clock Out
+      </button>
+    {% endif %}
+  </td>
 
-        <label>Shift Period:</label><br>
-        <select name="shiftPeriod" required>
-            <option value="morning">Morning</option>
-            <option value="afternoon">Afternoon</option>
-            <option value="night">Night</option>
-        </select><br><br>
+  <!-- SHIFT START -->
+  <td>
+    <input type="time" id="start_{{ loop.index }}"
+           value="{{ s.shiftstart }}">
+  </td>
 
-        <label>Shift Level:</label><br>
-        <input type="text" name="shiftLevel" placeholder="L1 / L2 ..." required><br><br>
+  <!-- SHIFT END -->
+  <td>
+    <input type="time" id="end_{{ loop.index }}"
+           value="{{ s.shiftend }}">
+  </td>
 
-        <label>Remarks (optional):</label><br>
-        <input type="text" name="remarks"><br><br>
+  <!-- HOURS -->
+  <td>{{ s.shifthours or "-" }}</td>
 
-        <button type="submit">Record Attendance</button>
-    </form>
+  <!-- REMARKS -->
+  <td>
+    <input type="text" id="remarks_{{ loop.index }}"
+           value="{{ s.remarks }}">
+  </td>
 
-    <h3>My Records</h3>
-    <table border="1" cellpadding="5">
-        <tr>
-            <th>Date</th>
-            <th>Shift</th>
-            <th>Clock In</th>
-            <th>Clock Out</th>
-            <th>Remarks</th>
-        </tr>
-        {% for r in records %}
-        {% if r.ID == user.id %}
-        <tr>
-            <td>{{ r.date }}</td>
-            <td>{{ r.shiftPeriod }}</td>
-            <td>{{ r.clockIn }}</td>
-            <td>{{ r.clockOut }}</td>
-            <td>{{ r.remarks }}</td>
-        </tr>
-        {% endif %}
-        {% endfor %}
-    </table>
+  <!-- SAVE -->
+  <td>
+    <button class="btn-save"
+      onclick="saveAttendance(
+        '{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}',
+        {{ loop.index }}
+      )">
+      Save
+    </button>
+  </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
 
-    <br>
-    <a href="/student/home">Back to Student Home</a>
+<script src="{{ url_for('static', filename='js/student_attendance.js') }}"></script>
 </body>
 </html>

@@ -1,15 +1,13 @@
-<script src="{{ url_for('static', filename='js/admin_slot_control.js') }}"></script>
-</body>
-</html>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Admin Manage Excel Files</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_manage_excel.css') }}">
-    <script src="{{ url_for('static', filename='js/admin_manage_excel.js') }}"></script>
 
+    <!-- External CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_manage_excel.css') }}">
+
+    <!-- Inline CSS (kept as-is, cleaned only) -->
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -24,15 +22,16 @@
         input[type="file"] {
             margin-right: 10px;
         }
-        button {
+        .btn, button {
             padding: 6px 15px;
             border: none;
             background-color: #007bff;
             color: white;
             border-radius: 3px;
             cursor: pointer;
+            text-decoration: none;
         }
-        button:hover {
+        .btn:hover, button:hover {
             background-color: #0056b3;
         }
         ul li {
@@ -52,59 +51,78 @@
         .toast.error { background-color: red; }
     </style>
 </head>
+
 <body>
-    <h1>Admin: Manage Excel Files</h1>
 
-    <div style="display:flex; gap:10px;">
-        <button type="button" onclick="window.history.back();" class="btn">Back</button>
-        <a href="{{ url_for('admin_home') }}" class="btn">Home</a>
-    </div>
+<h1>Admin: Manage Excel Files</h1>
 
-    <!-- Upload Form -->
-    <form method="POST" action="{{ url_for('admin_upload_excel') }}" enctype="multipart/form-data">
-        <label>Upload Excel File:
-            <input type="file" name="excel_file" accept=".xlsx,.xls">
-        </label>
-        <button type="submit">Upload</button>
-    </form>
+<!-- Navigation -->
+<div style="display:flex; gap:10px; margin-bottom:20px;">
+    <button type="button" onclick="window.history.back();" class="btn">Back</button>
+    <a href="{{ url_for('admin_home') }}" class="btn">Home</a>
+</div>
 
-    <!-- Download Links -->
-    <h2>Download Excel Files</h2>
-    <ul>
-        {% for file in excel_files %}
-            <li>
-                <a href="{{ url_for('admin_download_excel', filename=file) }}" target="_blank">{{ file }}</a>
-            </li>
+<!-- Upload Form -->
+<form method="POST"
+      action="{{ url_for('admin_upload_excel') }}"
+      enctype="multipart/form-data">
+    <label>
+        Upload Excel File:
+        <input type="file" name="excel_file" accept=".xlsx,.xls" required>
+    </label>
+    <button type="submit">Upload</button>
+</form>
+
+<!-- Download Section -->
+<h2>Download Excel Files</h2>
+
+<ul>
+    {% for file in excel_files %}
+        <li>
+            <a href="{{ url_for('admin_download_excel', filename=file) }}">
+                {{ file }}
+            </a>
+        </li>
+    {% else %}
+        <li>No Excel files found.</li>
+    {% endfor %}
+</ul>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<!-- ================= JS SECTION ================= -->
+
+<!-- Existing JS files (kept) -->
+<script src="{{ url_for('static', filename='js/admin_manage_excel.js') }}"></script>
+<script src="{{ url_for('static', filename='js/admin_slot_control.js') }}"></script>
+
+<!-- Toast Logic (kept) -->
+<script>
+    function showToast(message, success = true) {
+        const toast = document.getElementById("toast");
+        toast.textContent = message;
+        toast.className = "toast " + (success ? "success" : "error");
+        toast.style.display = "block";
+
+        setTimeout(() => {
+            toast.style.display = "none";
+        }, 3000);
+    }
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            showToast("{{ message|escape }}", "{{ category }}" === "success");
         {% endfor %}
-    </ul>
+    {% endif %}
+    {% endwith %}
+</script>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="toast"></div>
-
-    <script>
-        // Show toast notification
-        function showToast(message, success=true) {
-            const toast = document.getElementById("toast");
-            toast.textContent = message;
-            toast.className = `toast ${success ? 'success' : 'error'}`;
-            toast.style.display = "block";
-            setTimeout(() => { toast.style.display = "none"; }, 3000);
-        }
-
-        // Show Flask flash messages
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                showToast("{{ message }}", "{{ category }}" === "success");
-            {% endfor %}
-        {% endif %}
-        {% endwith %}
-    </script>
-
-    <script>
-        window.FLASH_MESSAGES = {{ flash_messages|tojson }};
-    </script>
-
+<!-- Optional: expose flash messages to JS (kept) -->
+<script>
+    window.FLASH_MESSAGES = {{ flash_messages | tojson }};
+</script>
 
 </body>
 </html>
