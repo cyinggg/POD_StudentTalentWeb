@@ -15,6 +15,7 @@ import shutil
 from zoneinfo import ZoneInfo
 from werkzeug.utils import secure_filename
 from flask import send_from_directory
+import base64
 
 # Initialize App
 app = Flask(__name__)
@@ -891,6 +892,7 @@ def admin_shift_application():
 
     return render_template(
         "admin_shift_application.html",
+        user=session.get("user"),
         application=app_df.to_dict("records"),
         calendar_data=calendar_data,
         today=today.date(),
@@ -1182,7 +1184,7 @@ SG_TZ = ZoneInfo("Asia/Singapore")
 
 def now_sg():
     return datetime.now(SG_TZ).strftime("%Y-%m-%d %H:%M:%S")
-
+# Admin AJAX verify and save sign
 @app.route("/admin/verify_shifts")
 def admin_verify_shifts():
     user = session.get("user")
@@ -1194,36 +1196,59 @@ def admin_verify_shifts():
         shifts = []
     else:
         rec_df.columns = rec_df.columns.str.strip().str.lower()
+        rec_df["date"] = pd.to_datetime(rec_df["date"], errors="coerce")
+        
+        # Sort by date ascending
+        rec_df = rec_df.sort_values(by="date", ascending=True)
+
+        # Merge verification info
+        verify_df = load_excel_safe(VERIFY_FILE)
+        if not verify_df.empty:
+            verify_df.columns = verify_df.columns.str.strip().str.lower()
+            # Create set of verified keys
+            verified_keys = set(
+                f"{row['studentcoachid']}_{row['date']}_{row['shiftperiod']}_{row['shiftlevel']}"
+                for idx, row in verify_df.iterrows()
+            )
+            rec_df["is_verified"] = rec_df.apply(
+                lambda r: f"{r['id']}_{r['date'].strftime('%Y-%m-%d')}_{r['shiftperiod']}_{r['shiftlevel']}" in verified_keys,
+                axis=1
+            )
+        else:
+            rec_df["is_verified"] = False
+
         shifts = rec_df.to_dict("records")
 
-    return render_template(
-        "admin_verify_shifts.html",
-        user=user,
-        shifts=shifts,
-        now_sg=now_sg()
-    )
+    return render_template("admin_verify_shifts.html", user=user, shifts=shifts, now_sg=now_sg())
 
-# Admin AJAX verify and save sign
+# --- Admin AJAX verify save ---
 @app.route("/admin/verify_shifts/save", methods=["POST"])
 def admin_verify_shift_save():
     user = session.get("user")
     if not user or user.get("role") != "admin":
         return jsonify(success=False, error="Unauthorized"), 403
 
-    key = request.form.get("key")
-    remarks = request.form.get("remarks", "").strip()
+    key = (request.form.get("key") or "").strip()
+    staffname = (request.form.get("staffname") or "").strip()
+    remarks = (request.form.get("remarks") or "").strip()
     canvas_data = request.form.get("canvasData")
     file = request.files.get("staffsign")
 
     if not key:
         return jsonify(success=False, error="Missing key"), 400
 
+    if not staffname:
+        return jsonify(success=False, error="Staff name required"), 400
+
     try:
-        sid, date_str, shift, level = key.split("_")
+        sid, date_str, shift, level = key.split("_", 3)
     except ValueError:
-        return jsonify(success=False, error="Invalid key"), 400
+        return jsonify(success=False, error="Invalid key format"), 400
 
     rec_df = load_excel_safe(RECORD_FILE)
+    if rec_df.empty:
+        return jsonify(success=False, error="No records found"), 404
+
     rec_df.columns = rec_df.columns.str.strip().str.lower()
     rec_df["id"] = rec_df["id"].astype(str)
     rec_df["date"] = pd.to_datetime(rec_df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
@@ -1240,19 +1265,24 @@ def admin_verify_shift_save():
 
     row = rec_df.loc[mask].iloc[0]
 
-    # ----- Save signature -----
+    # ---------- SIGNATURE ----------
     os.makedirs("static/signatures", exist_ok=True)
     sign_filename = ""
 
-    if canvas_data:
-        import base64
-        img_data = canvas_data.split(",")[1]
-        sign_filename = f"{sid}_{date_str}_{shift}_{level}.png"
-        with open(os.path.join("static/signatures", sign_filename), "wb") as f:
-            f.write(base64.b64decode(img_data))
+    if canvas_data and canvas_data.startswith("data:image"):
+        try:
+            img_data = canvas_data.split(",", 1)[1]
+            if len(img_data) < 1000:
+                return jsonify(success=False, error="Signature too small"), 400
 
-    elif file:
-        ext = os.path.splitext(file.filename)[1]
+            sign_filename = f"{sid}_{date_str}_{shift}_{level}.png"
+            with open(os.path.join("static/signatures", sign_filename), "wb") as f:
+                f.write(base64.b64decode(img_data))
+        except Exception:
+            return jsonify(success=False, error="Invalid canvas signature"), 400
+
+    elif file and file.filename:
+        ext = os.path.splitext(file.filename)[1].lower()
         sign_filename = f"{sid}_{date_str}_{shift}_{level}{ext}"
         file.save(os.path.join("static/signatures", sign_filename))
 
@@ -1260,17 +1290,20 @@ def admin_verify_shift_save():
         return jsonify(success=False, error="Signature required"), 400
 
     verify_df = load_excel_safe(VERIFY_FILE)
+
     if verify_df.empty:
         verify_df = pd.DataFrame(columns=[
             "indexshiftrecord", "timestamp", "month", "date", "day",
-            "shiftperiod", "shiftlevel", "studentcoachid", "studentcoachname",
-            "clockin", "clockout", "shiftstart", "shiftend", "shifthour",
+            "shiftperiod", "shiftlevel",
+            "studentcoachid", "studentcoachname",
+            "clockin", "clockout",
+            "shiftstart", "shiftend", "shifthour",
             "staffname", "staffsign", "staffremarks"
         ])
+    else:
+        verify_df.columns = verify_df.columns.str.strip().str.lower()
 
-    verify_df.columns = verify_df.columns.str.strip().str.lower()
-
-    verify_df = pd.concat([verify_df, pd.DataFrame([{
+    verify_df.loc[len(verify_df)] = {
         "indexshiftrecord": len(verify_df) + 1,
         "timestamp": now_sg(),
         "month": row.get("month", ""),
@@ -1284,11 +1317,11 @@ def admin_verify_shift_save():
         "clockout": row.get("clockout", ""),
         "shiftstart": row.get("shiftstart", ""),
         "shiftend": row.get("shiftend", ""),
-        "shifthour": row.get("shifthours", ""),
-        "staffname": user.get("name"),
+        "shifthour": row.get("shifthour", ""),
+        "staffname": staffname,
         "staffsign": sign_filename,
         "staffremarks": remarks
-    }])], ignore_index=True)
+    }
 
     save_excel_safe(verify_df, VERIFY_FILE)
 
