@@ -1,92 +1,37 @@
-/* Yellow background */
+/* ---------- PAGE BACKGROUND ---------- */
 body {
   background: #fff8dc !important;
+  font-family: Arial, sans-serif;
+  margin: 20px;
 }
 
-table {border-collapse: collapse; width: 100%;}
-th, td {border: 1px solid #ccc; padding: 5px;}
-
-.shift-block.open { background-color: green; color:white; }
-.shift-block.closed { background-color: red; color:white; }
-
-.date-label { font-weight: bold; margin-bottom: 5px; }
-.calendar-table td { vertical-align: top; min-height: 80px; }
-
-.shift-type { font-size: 0.8em; font-weight: bold; margin-top: 2px; }
-.shift-block { margin: 1px 0; padding: 2px; cursor: pointer; text-align: center; font-size: 0.8em; border-radius: 3px; }
-.shift-block:hover { opacity: 0.8; }
-
-.calendar-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+/* ---------- TABLE STYLING ---------- */
+table {
+  border-collapse: collapse;
+  width: 100%;
 }
 
-.calendar-week {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
-}
-
-.calendar-day {
-    border: 1px solid #ccc;
-    padding: 5px;
-    min-height: 100px;
-    background-color: #f9f9f9;
-}
-
-.calendar-day.other-month {
-    background-color: #eee;
-}
-
-.date {
-    font-weight: bold;
-    margin-bottom: 5px;
-}
-
-.slot-admin {
-    border-top: 1px dashed #ccc;
-    padding: 2px 0;
-}
-
-.calendar-week.header {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    font-weight: bold;
-    text-align: center;
-    margin-bottom: 5px;
-}
-
-.calendar-day-header {
-    padding: 5px 0;
-    background-color: #ddd;
-    border: 1px solid #ccc;
-}
-
-.calendar-cell {
-  border: 1px solid #ddd;
-  min-height: 130px;
+th, td {
+  border: 1px solid #ccc;
   padding: 6px;
-  background: #fff;
+  text-align: center;
 }
 
-.calendar-day.today {
-    border: 2px solid rgb(34, 255, 0);
-    background-color: #fde800;
+input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 3px 5px;
+  font-size: 0.9em;
 }
 
-.day-number {
-  font-weight: bold;
-  margin-bottom: 4px;
-}
-
+/* ---------- SHIFT BLOCK STYLING ---------- */
 .shift-block {
-    margin: 2px 0;
-    padding: 2px 4px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    text-align: center;
+  margin: 2px 0;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: center;
 }
 
 .shift-block.open {
@@ -99,62 +44,195 @@ th, td {border: 1px solid #ccc; padding: 5px;}
   border: 1px solid #dc3545;
 }
 
-.day {
+/* ---------- CALENDAR GRID ---------- */
+.calendar-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.calendar-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.calendar-week.header {
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 5px;
+}
+
+.calendar-day-header {
+  padding: 5px 0;
+  background-color: #ddd;
+  border: 1px solid #ccc;
+}
+
+/* ---------- CALENDAR DAYS ---------- */
+.calendar-day {
+  border: 1px solid #ccc;
+  padding: 5px;
+  min-height: 100px;
+  background-color: #f9f9f9;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calendar-day.other-month {
+  background-color: #eee;
+}
+
+.calendar-day.today {
+  border: 2px solid rgb(34, 255, 0);
+  background-color: #fde800;
+}
+
+.date {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+/* ---------- SLOT ADMIN (inside calendar cell) ---------- */
+/* ---------- CALENDAR SLOT MINI CARD ---------- */
+.slot-admin {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2 columns: label+checkbox + label+checkbox */
+    gap: 4px 8px; /* row gap / column gap */
     border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 4px;
+    background-color: #fff;
+    font-size: 0.85em;
+}
+
+.slot-admin strong {
+    grid-column: 1 / -1; /* take full width for the header */
+    font-size: 0.9em;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.slot-admin label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: flex-start;
+}
+
+.slot-admin input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+}
+
+.slot-admin input[type="text"] {
+    grid-column: 1 / -1; /* full width for remarks */
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 0.8em;
+    padding: 2px 4px;
+}
+
+/* Optional: hover effect for mini card */
+.slot-admin:hover {
+    background-color: #f0f8ff;
+}
+
+/* Compact spacing in calendar day */
+.calendar-day {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border: 1px solid #ccc;
+    padding: 4px;
     min-height: 100px;
-    padding: 2px;
 }
 
-.weekend {
-    background-color: #1f1f1f;
+/* Highlight today */
+.calendar-day.today {
+    border: 2px solid rgb(34, 255, 0);
+    background-color: #fde800;
 }
 
-/* Back button */
+/* Optional: card shadow for better visual separation */
+.slot-admin {
+    box-shadow: 1px 1px 3px rgba(0,0,0,0.1);
+}
+
+/* ---------- BUTTONS ---------- */
 .btn {
-    padding: 8px 16px;
-    background-color: #3498db;
-    color: white;
-    text-decoration: none; /* for <a> tag */
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.2s ease;
+  padding: 8px 16px;
+  background-color: #3498db;
+  color: white;
+  text-decoration: none;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s ease;
 }
 
 .btn:hover {
-    background-color: #2980b9;
+  background-color: #2980b9;
 }
 
 .btn:active {
-    transform: translateY(1px);
+  transform: translateY(1px);
 }
 
+/* ---------- TOAST NOTIFICATION ---------- */
 .toast {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    background: #2e7d32;
-    color: #fff;
-    padding: 12px 18px;
-    border-radius: 8px;
-    font-size: 14px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    z-index: 9999;
-    opacity: 0;
-    transform: translateY(10px);
-    transition: all 0.3s ease;
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #2e7d32;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s ease;
 }
 
 .toast.show {
-    opacity: 1;
-    transform: translateY(0);
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .toast.error {
-    background: #c62828;
+  background: #c62828;
 }
 
 .toast.hidden {
-    display: none;
+  display: none;
+}
+
+/* ---------- SAVED INDICATOR ---------- */
+.saved-indicator {
+  margin-left: 5px;
+  color: green;
+  font-weight: bold;
+  opacity: 1;
+  transition: opacity 0.7s ease-out;
+}
+
+.saved-indicator.fade-out {
+  opacity: 0;
+}
+
+/* ---------- RESPONSIVE CALENDAR ---------- */
+@media (max-width: 900px) {
+  .calendar-week {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px) {
+  .calendar-week {
+    grid-template-columns: 1fr;
+  }
 }

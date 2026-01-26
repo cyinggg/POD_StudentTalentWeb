@@ -3,6 +3,19 @@
 <head>
     <title>Admin Slot Control</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_slot_control.css') }}">
+    <style>
+        /* Saved animation */
+        .saved-indicator {
+            margin-left: 5px;
+            color: green;
+            font-weight: bold;
+            opacity: 1;
+            transition: opacity 0.7s ease-out;
+        }
+        .saved-indicator.fade-out {
+            opacity: 0;
+        }
+    </style>
 </head>
 
 <body>
@@ -155,6 +168,14 @@
                            data-shift="{{ slot.shiftperiod }}"
                            data-level="{{ slot.shiftlevel }}">
                 </label>
+
+                <input type="text"
+                       value="{{ slot.remarks }}"
+                       onblur="updateSlot(this)"
+                       data-field="remarks"
+                       data-date="{{ slot.date.strftime('%Y-%m-%d') }}"
+                       data-shift="{{ slot.shiftperiod }}"
+                       data-level="{{ slot.shiftlevel }}">
             </div>
             {% endfor %}
         </div>
@@ -165,6 +186,9 @@
 {% endif %}
 
 <div id="toast" class="toast hidden"></div>
+
+<!-- POST target for updateSlot() -->
+<script>const updateUrl = "{{ url_for('update_shift') }}";</script>
 
 <script src="{{ url_for('static', filename='js/admin_slot_control.js') }}"></script>
 </body>
