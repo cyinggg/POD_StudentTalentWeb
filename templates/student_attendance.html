@@ -38,14 +38,14 @@
 
   <!-- CLOCK IN -->
   <td>
-    {% if s.clockin %}
-      {{ s.clockin }}
-    {% else %}
+    <span id="clockin_{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}">
+      {% if s.clockin not in [None, "", "nan", "NaT"] %}
+        {{ s.clockin }}
+      {% endif %}
+    </span>
+    {% if s.clockin in [None, "", "nan", "NaT"] %}
       <button class="btn-clockin"
-        onclick="clockAction(
-          'clockin',
-          '{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}'
-        )">
+              onclick="clockAction('clockin', '{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}')">
         Clock In
       </button>
     {% endif %}
@@ -53,14 +53,14 @@
 
   <!-- CLOCK OUT -->
   <td>
-    {% if s.clockout %}
-      {{ s.clockout }}
-    {% else %}
+    <span id="clockout_{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}">
+      {% if s.clockout not in [None, "", "nan", "NaT"] %}
+        {{ s.clockout }}
+      {% endif %}
+    </span>
+    {% if s.clockout in [None, "", "nan", "NaT"] %}
       <button class="btn-clockout"
-        onclick="clockAction(
-          'clockout',
-          '{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}'
-        )">
+              onclick="clockAction('clockout', '{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}')">
         Clock Out
       </button>
     {% endif %}

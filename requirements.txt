@@ -1,3 +1,5 @@
-flask
+Flask
 pandas
 openpyxl
+Werkzeug
+python-dotenv

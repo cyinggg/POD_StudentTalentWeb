@@ -5,7 +5,6 @@ from flask import (
 )
 import pandas as pd
 import os
-import pandas as pd
 from calendar import monthrange, Calendar
 from datetime import datetime, date, timedelta
 import calendar
@@ -1018,52 +1017,48 @@ def student_attendance():
         return redirect(url_for("student_login"))
 
     sid = str(user["id"])
+
+    # Load Excel safely
     df = load_excel_safe(RECORD_FILE)
 
-    if df.empty:
-        df = pd.DataFrame(columns=[
-            "indexshiftverify", "timestamp", "applicationtimestamp",
-            "id", "name", "month", "date", "day",
-            "shiftperiod", "shiftlevel",
-            "clockin", "clockout",
-            "shiftstart", "shiftend", "shifthours",
-            "remarks"
-        ])
+    # Ensure all required columns exist
+    required_cols = [
+        "indexshiftverify", "timestamp", "applicationtimestamp",
+        "id", "name", "month", "date", "day",
+        "shiftperiod", "shiftlevel",
+        "clockin", "clockout",
+        "shiftstart", "shiftend", "shifthours", "remarks"
+    ]
+    for col in required_cols:
+        if col not in df.columns:
+            df[col] = "" if col in ["clockin", "clockout", "shiftstart", "shiftend", "remarks"] else 0
 
+    # Normalize
     df.columns = df.columns.str.strip().str.lower()
     df["id"] = df["id"].astype(str)
     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
 
-    # Ensure new columns exist (do NOT overwrite)
-    for col in ["shiftstart", "shiftend", "shifthours", "remarks"]:
-        if col not in df.columns:
-            df[col] = ""
-
+    # Filter shifts for this student
     my_shifts = df[df["id"] == sid].copy()
 
-    # CRITICAL NORMALIZATION FOR TEMPLATE
+    # --- CRITICAL: CLEAN NaN / NaT ---
     for col in ["clockin", "clockout", "shiftstart", "shiftend", "remarks"]:
         if col not in my_shifts.columns:
             my_shifts[col] = ""
+        else:
+            # Replace any NaN / NaT with empty string
+            my_shifts[col] = my_shifts[col].where(my_shifts[col].notna(), "")
+            my_shifts[col] = my_shifts[col].astype(str).str.strip()
 
-        my_shifts[col] = (
-            my_shifts[col]
-            .fillna("") # remove NaN / NaT
-            .astype(str)
-            .replace("nan", "")
-            .replace("NaT", "")
-            .str.strip()
-        )
-
-    # shifthours
     if "shifthours" not in my_shifts.columns:
         my_shifts["shifthours"] = ""
 
+    # --- Render template ---
     return render_template(
         "student_attendance.html",
         user=user,
         shifts=my_shifts.to_dict("records"),
-        now_time=now_sg()
+        now_time=now_sg()  # returns current SG time string
     )
 
 # Student coach clockIn clockOut
