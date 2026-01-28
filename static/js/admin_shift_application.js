@@ -19,6 +19,22 @@ document.addEventListener("DOMContentLoaded", function() {
     const filterOJT = document.getElementById("filterOJT");
     const filterNight = document.getElementById("filterNight");
 
+    // ------------------ Restore saved filters ------------------
+    const savedFilters = localStorage.getItem("adminShiftFilters");
+
+    if (savedFilters) {
+        const f = JSON.parse(savedFilters);
+
+        filterText.value = f.text || "";
+        filterDate.value = f.date || "";
+        filterShift.value = f.shift || "";
+        filterLevel.value = f.level || "";
+        filterStatus.value = f.status || "";
+        filterDecision.value = f.decision || "";
+        filterOJT.value = f.ojt || "";
+        filterNight.value = f.night || "";
+    }
+
     // ------------------ Notification ------------------
     function showNotification(message, isSuccess = true) {
         const box = document.getElementById("notification");
@@ -97,8 +113,17 @@ document.addEventListener("DOMContentLoaded", function() {
                 if (!res.ok) throw new Error(data.error || "Server error");
                 showNotification(`Table: ${data.message}`, true);
 
-                // FORCE REFRESH TO GET UPDATED DATA
-                setTimeout(() => location.reload(), 300);
+                // ---------- UPDATE ROW STATE ----------
+                row.dataset.status = status.toLowerCase();
+                row.dataset.decision = admindecision.toLowerCase();
+
+                // update badge text
+                const badge = row.querySelector(".status-badge");
+                badge.textContent = status;
+                badge.className = `badge status-badge ${status.toLowerCase()}`;
+
+                // re-apply filters immediately
+                applyFilters();
                 
             })
             .catch(e => showNotification(e.message || "Update failed", false));
@@ -134,12 +159,24 @@ document.addEventListener("DOMContentLoaded", function() {
                 showNotification(`Calendar: ${data.message}`, true);
 
                 // ----------- UPDATE UI IN PLACE -----------
+                // visual update
                 shiftBadge.classList.remove("pending", "approved", "rejected", "cancel");
-                if (admindecision) shiftBadge.classList.add(admindecision.toLowerCase());
-                else shiftBadge.classList.add("pending");
+
+                if (admindecision)
+                    shiftBadge.classList.add(admindecision.toLowerCase());
+                else
+                    shiftBadge.classList.add("pending");
+
+                // Update actual state
+                const finalStatus = admindecision ? admindecision : "pending";
+
+                shiftBadge.dataset.decision = finalStatus;
+                shiftBadge.dataset.status = finalStatus;
 
                 // Update the badge text color for visibility (optional)
-                if (admindecision.toLowerCase() === "pending") {
+                const decisionValue = (admindecision || "pending").toLowerCase();
+
+                if (decisionValue === "pending") {
                     shiftBadge.style.color = "#000";
                 } else {
                     shiftBadge.style.color = "#fff";
@@ -181,8 +218,27 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     [
-      filterText, filterStatus, filterDecision,
-      filterOJT, filterNight, filterDate,
-      filterShift, filterLevel
-    ].forEach(el => el.addEventListener("input", applyFilters));
+    filterText, filterStatus, filterDecision,
+    filterOJT, filterNight, filterDate,
+    filterShift, filterLevel
+    ].forEach(el => {
+        el.addEventListener("input", () => {
+            applyFilters();
+
+            // save filters
+            localStorage.setItem("adminShiftFilters", JSON.stringify({
+                text: filterText.value,
+                date: filterDate.value,
+                shift: filterShift.value,
+                level: filterLevel.value,
+                status: filterStatus.value,
+                decision: filterDecision.value,
+                ojt: filterOJT.value,
+                night: filterNight.value
+            }));
+        });
+    });
+
+    applyFilters();
 });
+

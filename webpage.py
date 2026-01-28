@@ -1,6 +1,5 @@
 # Basic Flask App Setup
-from flask import (Flask, render_template, request, redirect, url_for, session,
-                   jsonify, flash, get_flashed_messages)
+from flask import (send_from_directory, Flask, render_template, request, redirect, url_for, session, jsonify, flash, get_flashed_messages)
 import pandas as pd
 import os
 from calendar import monthrange, Calendar
@@ -11,7 +10,6 @@ import tempfile
 import shutil
 from zoneinfo import ZoneInfo
 from werkzeug.utils import secure_filename
-from flask import send_from_directory
 import base64
 
 # Initialize App
@@ -31,6 +29,14 @@ SLOT_FILE = os.path.join(DATA_FOLDER, "slot_control.xlsx")
 APPLICATION_FILE = os.path.join(DATA_FOLDER, "shift_application.xlsx")
 RECORD_FILE = os.path.join(DATA_FOLDER, "shift_record.xlsx")
 VERIFY_FILE = os.path.join(DATA_FOLDER, "shift_verify.xlsx")
+
+def format_timestamp(val):
+    if pd.isna(val) or val == "":
+        return ""
+    try:
+        return pd.to_datetime(val).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return str(val)
 
 
 # Excel Helper
@@ -391,7 +397,6 @@ def update_shift():
         "nightShift": nightShift
     })
 
-
 # Update totalApprovedShift and totalPendingShift
 def recalculate_account_shift_totals():
 
@@ -516,7 +521,7 @@ def student_coach_shifts():
     app_df["id"] = app_df["id"].astype(str)
     app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce").dt.date
 
-    # 🔒 HARD FIX: NEVER NaN TIMESTAMP
+    # NEVER NaN TIMESTAMP
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     app_df["timestamp"] = (app_df["timestamp"].astype(str).replace(
         "nan", "").replace("", now_str).fillna(now_str))
@@ -537,7 +542,7 @@ def student_coach_shifts():
                       (slot_df["isopen"] == 1)]
 
     # -----------------------------
-    # 🔥 INCLUDE OLD APPLICATIONS EVEN IF SLOT MISSING
+    # INCLUDE OLD APPLICATIONS EVEN IF SLOT MISSING
     # -----------------------------
     user_apps = app_df[(app_df["id"] == sid) & (app_df["date"].notna()) & (
         app_df["date"].apply(lambda d: d.year == year and d.month == month))]
@@ -678,7 +683,6 @@ def student_coach_shift_action():
         app_df["date"] = pd.to_datetime(app_df["date"],
                                         errors="coerce").dt.date
 
-        # 🔒 HARD FIX
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         app_df["timestamp"] = (app_df["timestamp"].astype(str).replace(
             "nan", "").replace("", now_str).fillna(now_str))
@@ -738,13 +742,11 @@ def student_coach_shift_action():
         print("student_coach_shift_action ERROR:", e)
         return jsonify(success=False, error="Internal server error"), 500
 
+def safe_value(val):
+    return "" if pd.isna(val) else str(val).strip()
 
 # Write approved shift to shift_record.xlsx
 def write_shift_record_if_not_exists(application_row):
-    """
-    Writes an approved shift application to shift_record.xlsx if it doesn't already exist.
-    Duplicate check is based on ID + date + shiftperiod.
-    """
 
     # Load existing shift record
     record_df = load_excel_safe(RECORD_FILE)
@@ -784,8 +786,8 @@ def write_shift_record_if_not_exists(application_row):
         "timestamp":
         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "applicationtimestamp":
-        application_row.get("timestamp_str")
-        or application_row.get("timestamp"),
+        safe_value(application_row.get("timestamp"))
+        or safe_value(application_row.get("timestamp_str")),
         "id":
         str(application_row.get("id")),
         "name":
@@ -815,7 +817,6 @@ def write_shift_record_if_not_exists(application_row):
     # Save only canonical columns, in correct order
     save_excel_safe(record_df[REQUIRED_COLUMNS], RECORD_FILE)
 
-
 # Admin shift application page
 @app.route("/admin/shift_application")
 def admin_shift_application():
@@ -826,6 +827,30 @@ def admin_shift_application():
     today = datetime.today()
     month = request.args.get("month", default=today.month, type=int)
     year = request.args.get("year", default=today.year, type=int)
+
+    # Flter application for current month only, app_df has a 'date' column of datetime
+    # Normalize columns FIRST
+    app_df.columns = app_df.columns.str.strip().str.lower()
+
+    # Convert date BEFORE using .dt
+    app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce")
+
+    # Filter by month/year
+    month_apps = app_df[
+        (app_df["date"].dt.month == month) &
+        (app_df["date"].dt.year == year)
+    ]
+
+    calendar_data = {}
+    for _, row in month_apps.iterrows():
+        date_str = row['date'].strftime('%Y-%m-%d')
+        calendar_data.setdefault(date_str, []).append(row.to_dict())
+
+    def in_month(d):
+        return d.month == month
+
+    today = datetime.today()
+    in_month = lambda d: d.month == month
 
     # Calendar month (Monday-first)
     cal = calendar.Calendar(firstweekday=0)  # Monday=0
@@ -841,7 +866,7 @@ def admin_shift_application():
                                month_days=month_days)
 
     # --- Normalize columns ---
-    app_df.columns = app_df.columns.str.strip()
+    app_df.columns = app_df.columns.str.strip().str.lower()
     app_df["id"] = app_df["id"].astype(str).str.strip()
     app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce")
 
@@ -849,14 +874,6 @@ def admin_shift_application():
     for col in ["admindecision", "adminremarks", "status", "timestamp_str"]:
         if col not in app_df.columns:
             app_df[col] = ""
-
-    # Fill missing timestamps for old rows
-    # now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # app_df["timestamp_str"] = app_df["timestamp_str"].replace("", now_str).fillna(now_str)
-    # if "timestamp" not in app_df.columns:
-    #     app_df["timestamp"] = now_str
-    # else:
-    #     app_df["timestamp"] = app_df["timestamp"].fillna(now_str).replace("", now_str)
 
     # Ensure columns exist but DO NOT modify values
     for col in [
@@ -927,16 +944,22 @@ def admin_shift_application():
             row.get("adminremarks", "")
         })
 
+    # convert timestamps BEFORE sending to template
+    app_df["timestamp_display"] = app_df["timestamp"].apply(
+        lambda x: "" if pd.isna(x) else pd.to_datetime(x).strftime("%Y-%m-%d %H:%M:%S")
+    )
+
     return render_template("admin_shift_application.html",
                            user=session.get("user"),
                            application=app_df.to_dict("records"),
                            calendar_data=calendar_data,
-                           today=today.date(),
+                           today=today,
                            month=month,
                            year=year,
                            month_days=month_days,
                            datetime=datetime,
-                           timedelta=timedelta)
+                           timedelta=timedelta,
+                           in_month=in_month)
 
 
 # Admin shift application approve reject AJAX update
@@ -983,16 +1006,19 @@ def update_shift_application():
         app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce")
         app_df["shiftperiod"] = app_df["shiftperiod"].astype(str).str.lower()
         app_df["shiftlevel"] = app_df["shiftlevel"].astype(str).str.lower()
-        app_df["timestamp_str"] = app_df["timestamp_str"].astype(
-            str).str.strip()
+        app_df["timestamp_str"] = app_df["timestamp_str"].fillna("")
 
         # -----------------------------
         # Build row match (SAFE)
         # -----------------------------
         mask = None
 
+        timestamp = (request.form.get("timestamp") or "").strip()
+
         if timestamp:
-            mask = (app_df["timestamp_str"] == timestamp)
+            mask = (
+                app_df["timestamp"].astype(str).str.startswith(timestamp)
+            )
 
         if mask is None or not mask.any():
             mask = ((app_df["id"] == id_) &
@@ -1012,10 +1038,6 @@ def update_shift_application():
         app_df.loc[mask, "adminremarks"] = adminremarks
         app_df.loc[mask, "status"] = status
         app_df.loc[mask, "adminupdatetimestamp"] = now_str
-
-        # Fill timestamp_str ONLY if missing (old rows)
-        app_df.loc[mask & (app_df["timestamp_str"] == ""),
-                   "timestamp_str"] = now_str
 
         # -----------------------------
         # Save safely
@@ -1044,11 +1066,8 @@ def update_shift_application():
 
 # Student coach attendance page
 SG_TZ = ZoneInfo("Asia/Singapore")
-
-
 def now_sg():
     return datetime.now(SG_TZ).strftime("%Y-%m-%d %H:%M:%S")
-
 
 @app.route("/student/attendance")
 def student_attendance():

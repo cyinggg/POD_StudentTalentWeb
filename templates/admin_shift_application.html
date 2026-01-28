@@ -142,7 +142,7 @@
             <tbody>
                 {% for app in application %}
                 <tr
-                  data-timestamp="{{ app['timestamp_str'] }}"
+                  data-timestamp="{{ app['timestamp_display'] }}"
                   data-key="{{ app['id'] }}_{{ app['date'].strftime('%Y-%m-%d') }}_{{ app['shiftperiod'] or app['shiftPeriod'] }}_{{ app['shiftlevel'] or app['shiftLevel'] }}"
                   data-id="{{ app['id'] }}"
                   data-name="{{ app['name'] | lower }}"
@@ -154,7 +154,7 @@
                   data-ojt="{{ app['onjobtrain'] }}"
                   data-night="{{ app['nightShift'] }}"
                 >
-                    <td>{{ app['timestamp_str'] }}</td>
+                    <td>{{ app['timestamp_display'] }}</td>
                     <td>{{ app['ID'] or app['id'] }}</td>
                     <td>{{ app['onjobtrain'] }}</td>
                     <td>{{ app['nightShift'] }}</td>
@@ -202,9 +202,8 @@
                     {% if day %}
                     {% set date_str = day.strftime('%Y-%m-%d') %}
                     {% set apps = calendar_data.get(date_str, []) %}
-                    {% set in_month = (day.month == month) %}
 
-                    <div class="calendar-day {% if not in_month %}other-month{% endif %}"
+                    <div class="calendar-day {% if day.month != month %}other-month{% endif %}"
                         data-date="{{ date_str }}"
                         {% if day == today %}data-today="true"{% endif %}>
 
