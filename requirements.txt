@@ -3,3 +3,6 @@ pandas
 openpyxl
 Werkzeug
 python-dotenv
+flask
+apscheduler
+python-telegram-bot==13.15

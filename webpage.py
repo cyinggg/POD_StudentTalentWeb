@@ -1,26 +1,34 @@
-# Basic Flask App Setup
-from flask import (send_from_directory, Flask, render_template, request, redirect, url_for, session, jsonify, flash, get_flashed_messages)
+# webpage.py
+from flask import (
+    Flask, render_template, request, redirect,
+    url_for, session, jsonify
+)
+
 import pandas as pd
 import os
-from calendar import monthrange, Calendar
-from datetime import datetime, date, timedelta
 import calendar
-from collections import defaultdict
 import tempfile
 import shutil
-from zoneinfo import ZoneInfo
-from werkzeug.utils import secure_filename
 import base64
 
-# Initialize App
-app = Flask(__name__)
-app.secret_key = "replace_this_with_a_secure_key"
+from datetime import datetime, date, timedelta
+from collections import defaultdict
+from zoneinfo import ZoneInfo
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# -------------------------
+# Flask App Initialization
+# -------------------------
+app = Flask(__name__)
+
+# Use env variable if available (Replit-safe)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-me")
 
 @app.context_processor
 def inject_now():
     return {'now': datetime.now}
-
 
 # Excel Data Folder
 DATA_FOLDER = "data"
@@ -1251,6 +1259,11 @@ def admin_verify_shifts():
         shifts = []
     else:
         rec_df.columns = rec_df.columns.str.strip().str.lower()
+        # map shift record fields
+        rec_df.rename(columns={
+            "remarks": "duty",
+            "shifthours": "shifthour"
+        }, inplace=True)
         rec_df["date"] = pd.to_datetime(rec_df["date"], errors="coerce")
 
         # Sort by date ascending
@@ -1576,6 +1589,6 @@ def health():
 # ==========================
 # RUN
 # ==========================
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+# if __name__ == "__main__":
+#     port = int(os.environ.get("PORT", 5000))
+#     app.run(host="0.0.0.0", port=port, debug=True)

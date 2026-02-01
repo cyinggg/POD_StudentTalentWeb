@@ -1,6 +1,6 @@
 .calendar-day.today {
     border: 2px solid rgb(34, 255, 0);
-    background-color: #fde800;
+    background-color: #fff800;
 }
 
 body {
@@ -109,13 +109,7 @@ body {
 .calendar-day { border:1px solid #ccc; min-height:80px; padding:2px; }
 .day-number { font-weight:bold; }
 .shift-block { margin:2px; padding:2px; border-radius:4px; cursor:pointer; text-align:center; }
-.shift-block.open { background-color:#a0e0a0; }
-.shift-block.pending { background-color:#f0e080; }
-.shift-block.approved { background-color:#80c0f0; }
-.shift-block.ineligible { background-color:#e0e0e0; cursor:not-allowed; color:#888; }
-.shift-table { width:100%; border-collapse:collapse; margin-top:10px; }
-.shift-table th, .shift-table td { border:1px solid #ccc; padding:4px; text-align:center; }
-.shift-table td.open { background-color:#a0e0a0; }
-.shift-table td.pending { background-color:#f0e080; }
-.shift-table td.approved { background-color:#80c0f0; }
-.shift-table td.ineligible { background-color:#e0e0e0; color:#888; }
+.shift-block.open { background-color:#99ecff; }
+.shift-block.pending { background-color:#f8ff66; }
+.shift-block.approved { background-color:#33ff33; }
+.shift-block.ineligible { background-color:#ffcccc; cursor:not-allowed; color:#888; }

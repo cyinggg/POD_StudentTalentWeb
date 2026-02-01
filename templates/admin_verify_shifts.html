@@ -46,63 +46,70 @@
     <div class="table-container">
         <table class="verify-table">
             <thead>
-                <tr>
-                    <th>Month</th><th>Date</th><th>Day</th><th>Shift</th><th>Level</th>
-                    <th>Student ID</th><th>Name</th><th>Clock In</th><th>Clock Out</th>
-                    <th>Shift Start</th><th>Shift End</th><th>Hours</th>
-                    <th>Staff Name</th><th>Admin Remarks</th><th>Signature</th><th>Verify</th>
-                </tr>
+            <tr>
+                <th>Date</th>
+                <th>Day</th>
+                <th>Shift</th>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>Shift Start</th>
+                <th>Shift End</th>
+                <th>Hours</th>
+                <th>Staff Name</th>
+                <th>Admin Remarks</th>
+                <th>Signature</th>
+            </tr>
             </thead>
 
             <tbody>
             {% for s in shifts %}
                 <tr id="row_{{ loop.index }}">
-                    <td>{{ s.month }}</td>
+
                     <td>{{ s.date }}</td>
                     <td>{{ s.day }}</td>
                     <td>{{ s.shiftperiod }}</td>
-                    <td>{{ s.shiftlevel }}</td>
                     <td>{{ s.id }}</td>
                     <td>{{ s.name }}</td>
-                    <td>{{ s.clockin }}</td>
-                    <td>{{ s.clockout }}</td>
                     <td>{{ s.shiftstart }}</td>
                     <td>{{ s.shiftend }}</td>
                     <td>{{ s.shifthour }}</td>
 
                     <!-- STAFF NAME -->
                     <td>
-                        <input type="text" id="staffname_{{ loop.index }}" placeholder="Staff Name"
+                        <input type="text"
+                            id="staffname_{{ loop.index }}"
+                            placeholder="Staff Name"
                             value="{{ s.staffname or '' }}">
                     </td>
 
-                    <!-- REMARKS -->
+                    <!-- ADMIN REMARKS -->
                     <td>
-                        <input type="text" id="remarks_{{ loop.index }}" placeholder="Remarks"
+                        <input type="text"
+                            id="remarks_{{ loop.index }}"
+                            placeholder="Remarks"
                             value="{{ s.staffremarks or '' }}">
                     </td>
 
                     <!-- SIGNATURE -->
                     <td>
-                        <canvas id="canvas_{{ loop.index }}" class="sign-canvas" width="180" height="70"></canvas>
+                        <canvas id="canvas_{{ loop.index }}"
+                                class="sign-canvas"
+                                width="180"
+                                height="70"></canvas>
 
                         <div class="sign-controls">
                             <button type="button" onclick="clearCanvas({{ loop.index }})">Clear</button>
-                            <input type="file" id="file_{{ loop.index }}" accept="image/*" onchange="previewFile({{ loop.index }})">
+                            <input type="file"
+                                id="file_{{ loop.index }}"
+                                accept="image/*"
+                                onchange="previewFile({{ loop.index }})">
                         </div>
-                        <img id="preview_{{ loop.index }}" class="sign-preview" src="" alt="Preview" style="display:none;">
+
+                        <img id="preview_{{ loop.index }}"
+                            class="sign-preview"
+                            style="display:none;">
                     </td>
 
-                    <!-- VERIFY BUTTON -->
-                    <td>
-                        <button type="button"
-                            class="btn-verify {% if s.is_verified %}verified{% endif %}"
-                            id="verifyBtn_{{ loop.index }}"
-                            {% if s.is_verified %}disabled{% endif %}
-                            onclick="verifyShift('{{ s.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}', {{ loop.index }})">
-                            {% if s.is_verified %}Verified ✓{% else %}Verify{% endif %}
-                        </button>
-                    </td>
                 </tr>
             {% endfor %}
             </tbody>

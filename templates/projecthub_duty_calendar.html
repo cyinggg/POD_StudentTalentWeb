@@ -62,23 +62,45 @@
 
                             <div class="date-number">{{ day.day }}</div>
 
-                            {% if apps %}
-                                <div class="day-summary">
-                                    {{ apps|length }} shift{{ 's' if apps|length > 1 }}
-                                </div>
-                            {% endif %}
+                            {% set morning = apps | selectattr('shiftperiod', 'equalto', 'morning') | list %}
+                            {% set afternoon = apps | selectattr('shiftperiod', 'equalto', 'afternoon') | list %}
+                            {% set night = apps | selectattr('shiftperiod', 'equalto', 'night') | list %}
 
-                            {% for app in apps %}
-                                <div class="shift-badge shift-{{ app['shiftperiod'] }}">
+                            <div class="shift-section morning">
+                                <div class="shift-title">Morning</div>
 
-                                    <strong>{{ app['name'] }}</strong>
+                                {% if morning %}
+                                    {% for app in morning %}
+                                        <div class="shift-name">{{ app['name'] }}</div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="shift-empty">No Student Coach</div>
+                                {% endif %}
+                            </div>
 
-                                    <div class="small">
-                                        {{ app['shiftperiod']|capitalize }} • {{ app['shiftlevel']|upper }}
-                                    </div>
+                            <div class="shift-section afternoon">
+                                <div class="shift-title">Afternoon</div>
 
-                                </div>
-                            {% endfor %}
+                                {% if afternoon %}
+                                    {% for app in afternoon %}
+                                        <div class="shift-name">{{ app['name'] }}</div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="shift-empty">No Student Coach</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="shift-section night">
+                                <div class="shift-title">Night</div>
+
+                                {% if night %}
+                                    {% for app in night %}
+                                        <div class="shift-name">{{ app['name'] }}</div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="shift-empty">No Student Coach</div>
+                                {% endif %}
+                            </div>
 
                         </div>
                     {% else %}
