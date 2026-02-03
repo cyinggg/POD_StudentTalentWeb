@@ -5,24 +5,36 @@ function clockAction(action, key) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, key })
     })
-    .then(r => r.json())
+    .then(res => res.json())
     .then(data => {
         if (!data.success) {
-            alert(data.error);
+            alert(data.error || "Action failed");
             return;
         }
 
-        const spanId = (action === "clockin" ? "clockin_" : "clockout_") + key;
-        const span = document.getElementById(spanId);
-        if (span) span.textContent = data.time;
+        const btn = document.getElementById(`${action}_${key}`);
+        const timeSpan = document.getElementById(`${action}_time_${key}`);
 
-        const btn = document.querySelector(`button[data-key="${key}"][data-action="${action}"]`);
-        if (btn) btn.remove();
+        // Show timestamp
+        if (timeSpan) {
+            timeSpan.innerText = data.time;
+            timeSpan.style.display = "inline";
+        }
 
+        // Hide button completely
+        if (btn) {
+            btn.style.display = "none";
+        }
+
+        // Optional: enable clock-out after clock-in
         if (action === "clockin") {
-            const outBtn = document.querySelector(`button[data-key="${key}"][data-action="clockout"]`);
+            const outBtn = document.getElementById(`clockout_${key}`);
             if (outBtn) outBtn.disabled = false;
         }
+    })
+    .catch(err => {
+        console.error(err);
+        alert("Server error");
     });
 }
 

@@ -1,13 +1,13 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+import pytz
 from telegram import Bot
 import os
 
 from .data_reader import load_approved_shifts
 from .message_builder import build_duty_message
 
-SG_TZ = ZoneInfo("Asia/Singapore")
+SG_TZ = pytz.timezone("Asia/Singapore")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = int(os.getenv("CHAT_ID"))

@@ -1,40 +1,83 @@
-.attendance-table {
-    width: 100%;
-    border-collapse: collapse;
+body {
+    font-family: Arial, sans-serif;
+    background: #f7f8fa;
+    margin: 20px;
 }
 
-.attendance-table th,
-.attendance-table td {
-    border: 1px solid #ddd;
-    padding: 6px;
+.nav {
+    margin-bottom: 15px;
+}
+
+.nav button, .nav a {
+    padding: 6px 12px;
+    margin-right: 8px;
+    text-decoration: none;
+    border-radius: 6px;
+    border: none;
+    background: #2d7ff9;
+    color: white;
+    cursor: pointer;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+th {
+    background: #eef2f7;
+    padding: 10px;
     text-align: center;
+}
+
+td {
+    padding: 10px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+tr:nth-child(even) {
+    background: #fafafa;
+}
+
+button {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
 }
 
 .btn-clockin {
     background: #28a745;
     color: white;
-    border: none;
-    padding: 5px 8px;
-    cursor: pointer;
 }
 
 .btn-clockout {
     background: #dc3545;
     color: white;
-    border: none;
-    padding: 5px 8px;
-    cursor: pointer;
+}
+
+button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.clock-time {
+    font-weight: bold;
+    color: #333;
+}
+
+input[type="time"], input[type="text"] {
+    padding: 5px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
 }
 
 .btn-save {
-    background: #007bff;
+    background: #444;
     color: white;
-    border: none;
-    padding: 5px 8px;
-    cursor: pointer;
-}
-
-input[type="time"],
-input[type="text"] {
-    width: 95%;
 }

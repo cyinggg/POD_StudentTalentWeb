@@ -4,7 +4,13 @@
     <title>Student Attendance</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/student_attendance.css') }}">
 </head>
+
 <body>
+
+<div class="nav">
+    <button onclick="history.back()">Back</button>
+    <a href="{{ url_for('student_home') }}">Home</a>
+</div>
 
 <h2>Clock In / Clock Out</h2>
 <p><strong>{{ user.name }}</strong></p>
@@ -13,46 +19,74 @@
 <table>
 <thead>
 <tr>
-<th>Date</th><th>Shift</th><th>Clock In</th><th>Clock Out</th>
-<th>Shift Start</th><th>Shift End</th><th>Hours</th><th>Remarks</th><th>Save</th>
+    <th>Date</th>
+    <th>Shift</th>
+    <th>Clock In</th>
+    <th>Clock Out</th>
+    <th>Start</th>
+    <th>End</th>
+    <th>Hours</th>
+    <th>Remarks</th>
+    <th>Save</th>
 </tr>
 </thead>
+
 <tbody>
 {% for s in shifts %}
 <tr>
-  <td>{{ s.date }}</td>
-  <td>{{ s.shiftperiod }} ({{ s.shiftlevel }})</td>
+    <td>{{ s.date }}</td>
+    <td>{{ s.shiftperiod }} ({{ s.shiftlevel }})</td>
 
-  <td>
-    <button class="btn-clockin"
-        data-key="{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}"
-        data-action="clockin"
-        onclick="clockAction('clockin', '{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}')"
-        {% if s.clockin not in [None,'','nan','NaT'] %} disabled {% endif %}>
-      {% if s.clockin not in [None,'','nan','NaT'] %} {{ s.clockin }} {% else %} Clock In {% endif %}
-    </button>
-  </td>
+    <!-- CLOCK IN -->
+    <td>
+        {% if s.clockin not in [None,'','nan','NaT'] %}
+            <span class="clock-time">{{ s.clockin }}</span>
+        {% else %}
+            <button
+                class="btn-clockin"
+                id="clockin_{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}"
+                onclick="clockAction('clockin','{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}')">
+                Clock In
+            </button>
+        {% endif %}
+        <span id="clockin_time_{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}"
+              class="clock-time" style="display:none;"></span>
+    </td>
 
-  <td>
-    <button class="btn-clockout"
-        data-key="{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}"
-        data-action="clockout"
-        onclick="clockAction('clockout', '{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}')"
-        {% if s.clockout not in [None,'','nan','NaT'] or s.clockin in [None,'','nan','NaT'] %} disabled {% endif %}>
-      {% if s.clockout not in [None,'','nan','NaT'] %} {{ s.clockout }} {% else %} Clock Out {% endif %}
-    </button>
-  </td>
+    <!-- CLOCK OUT -->
+    <td>
+        {% if s.clockout not in [None,'','nan','NaT'] %}
+            <span class="clock-time">{{ s.clockout }}</span>
+        {% else %}
+            <button
+                class="btn-clockout"
+                id="clockout_{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}"
+                onclick="clockAction('clockout','{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}')"
+                {% if s.clockin in [None,'','nan','NaT'] %} disabled {% endif %}>
+                Clock Out
+            </button>
+        {% endif %}
+        <span id="clockout_time_{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}"
+              class="clock-time" style="display:none;"></span>
+    </td>
 
-  <td><input type="time" id="start_{{ loop.index }}" value="{{ s.shiftstart }}"></td>
-  <td><input type="time" id="end_{{ loop.index }}" value="{{ s.shiftend }}"></td>
-  <td>{{ s.shifthours or '-' }}</td>
-  <td><input type="text" id="remarks_{{ loop.index }}" value="{{ s.remarks }}"></td>
-  <td><button class="btn-save" onclick="saveAttendance('{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}', {{ loop.index }})">Save</button></td>
+    <td><input type="time" id="start_{{ loop.index }}" value="{{ s.shiftstart }}"></td>
+    <td><input type="time" id="end_{{ loop.index }}" value="{{ s.shiftend }}"></td>
+    <td>{{ s.shifthours or "-" }}</td>
+    <td><input type="text" id="remarks_{{ loop.index }}" value="{{ s.remarks }}"></td>
+
+    <td>
+        <button class="btn-save"
+            onclick="saveAttendance('{{ user.id }}_{{ s.date }}_{{ s.shiftperiod }}_{{ s.shiftlevel }}', {{ loop.index }})">
+            Save
+        </button>
+    </td>
 </tr>
 {% endfor %}
 </tbody>
 </table>
 
 <script src="{{ url_for('static', filename='js/student_attendance.js') }}"></script>
+
 </body>
 </html>
