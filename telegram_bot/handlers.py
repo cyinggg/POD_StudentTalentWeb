@@ -9,10 +9,10 @@ SG_TZ = ZoneInfo("Asia/Singapore")
 
 def main_menu():
     keyboard = [
-        [InlineKeyboardButton("📅 Today", callback_data="today")],
-        [InlineKeyboardButton("📆 Tomorrow", callback_data="tomorrow")],
-        [InlineKeyboardButton("🔍 Search by Date", callback_data="search_date")],
-        [InlineKeyboardButton("👤 Search by Name", callback_data="search_name")]
+        [InlineKeyboardButton("Today", callback_data="today")],
+        [InlineKeyboardButton("Tomorrow", callback_data="tomorrow")],
+        [InlineKeyboardButton("Search by Date", callback_data="search_date")],
+        [InlineKeyboardButton("Search by Name", callback_data="search_name")]
     ]
     return InlineKeyboardMarkup(keyboard)
 

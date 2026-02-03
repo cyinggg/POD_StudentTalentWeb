@@ -17,7 +17,7 @@ def start_bot():
         "start",
         lambda u, c: c.bot.send_message(
             chat_id=u.effective_chat.id,
-            text="👋 ProjectHub Duty Bot",
+            text="ProjectHub Duty Bot",
             reply_markup=main_menu()
         )
     ))

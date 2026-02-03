@@ -7,10 +7,10 @@ def build_duty_message(target_date, shifts):
     date_str = target_date.strftime("%d %b %Y (%A)")
 
     if is_weekend(target_date):
-        return f"📌 {date_str}\n\n🚫 Weekend, ProjectHub closed."
+        return f"📌 {date_str}\n\nWeekend, ProjectHub closed."
 
     if not shifts:
-        return f"📌 {date_str}\n\n🚫 Public Holiday, ProjectHub closed."
+        return f"📌 {date_str}\n\nPublic Holiday, ProjectHub closed."
 
     lines = [f"📌 *{date_str}*\n👥 Student Coach on Duty:\n"]
     for s in shifts:

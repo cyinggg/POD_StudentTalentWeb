@@ -1,34 +1,28 @@
-# webpage.py
-from flask import (
-    Flask, render_template, request, redirect,
-    url_for, session, jsonify
-)
-
+# Basic Flask App Setup
+from flask import (send_from_directory, Flask, render_template, request,
+                   redirect, url_for, session, jsonify, flash,
+                   get_flashed_messages)
 import pandas as pd
 import os
+from calendar import monthrange, Calendar
+from datetime import datetime, date, timedelta
 import calendar
+from collections import defaultdict
 import tempfile
 import shutil
+from zoneinfo import ZoneInfo
+from werkzeug.utils import secure_filename
 import base64
 
-from datetime import datetime, date, timedelta
-from collections import defaultdict
-from zoneinfo import ZoneInfo
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# -------------------------
-# Flask App Initialization
-# -------------------------
+# Initialize App
 app = Flask(__name__)
+app.secret_key = "replace_this_with_a_secure_key"
 
-# Use env variable if available (Replit-safe)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-me")
 
 @app.context_processor
 def inject_now():
     return {'now': datetime.now}
+
 
 # Excel Data Folder
 DATA_FOLDER = "data"
@@ -37,6 +31,7 @@ SLOT_FILE = os.path.join(DATA_FOLDER, "slot_control.xlsx")
 APPLICATION_FILE = os.path.join(DATA_FOLDER, "shift_application.xlsx")
 RECORD_FILE = os.path.join(DATA_FOLDER, "shift_record.xlsx")
 VERIFY_FILE = os.path.join(DATA_FOLDER, "shift_verify.xlsx")
+
 
 def format_timestamp(val):
     if pd.isna(val) or val == "":
@@ -405,6 +400,7 @@ def update_shift():
         "nightShift": nightShift
     })
 
+
 # Update totalApprovedShift and totalPendingShift
 def recalculate_account_shift_totals():
 
@@ -750,8 +746,10 @@ def student_coach_shift_action():
         print("student_coach_shift_action ERROR:", e)
         return jsonify(success=False, error="Internal server error"), 500
 
+
 def safe_value(val):
     return "" if pd.isna(val) else str(val).strip()
+
 
 # Write approved shift to shift_record.xlsx
 def write_shift_record_if_not_exists(application_row):
@@ -825,6 +823,7 @@ def write_shift_record_if_not_exists(application_row):
     # Save only canonical columns, in correct order
     save_excel_safe(record_df[REQUIRED_COLUMNS], RECORD_FILE)
 
+
 # Admin shift application page
 @app.route("/admin/shift_application")
 def admin_shift_application():
@@ -844,10 +843,8 @@ def admin_shift_application():
     app_df["date"] = pd.to_datetime(app_df["date"], errors="coerce")
 
     # Filter by month/year
-    month_apps = app_df[
-        (app_df["date"].dt.month == month) &
-        (app_df["date"].dt.year == year)
-    ]
+    month_apps = app_df[(app_df["date"].dt.month == month)
+                        & (app_df["date"].dt.year == year)]
 
     calendar_data = {}
     for _, row in month_apps.iterrows():
@@ -954,8 +951,8 @@ def admin_shift_application():
 
     # convert timestamps BEFORE sending to template
     app_df["timestamp_display"] = app_df["timestamp"].apply(
-        lambda x: "" if pd.isna(x) else pd.to_datetime(x).strftime("%Y-%m-%d %H:%M:%S")
-    )
+        lambda x: ""
+        if pd.isna(x) else pd.to_datetime(x).strftime("%Y-%m-%d %H:%M:%S"))
 
     return render_template("admin_shift_application.html",
                            user=session.get("user"),
@@ -1024,9 +1021,7 @@ def update_shift_application():
         timestamp = (request.form.get("timestamp") or "").strip()
 
         if timestamp:
-            mask = (
-                app_df["timestamp"].astype(str).str.startswith(timestamp)
-            )
+            mask = (app_df["timestamp"].astype(str).str.startswith(timestamp))
 
         if mask is None or not mask.any():
             mask = ((app_df["id"] == id_) &
@@ -1073,171 +1068,385 @@ def update_shift_application():
 
 
 # Student coach attendance page
+# SG_TZ = ZoneInfo("Asia/Singapore")
+
+
+# def now_sg():
+#     return datetime.now(SG_TZ).strftime("%Y-%m-%d %H:%M:%S")
+
+
+# @app.route("/student/attendance")
+# def student_attendance():
+#     user = session.get("user")
+#     if user is None or user.get("role") != "student coach":
+#         return redirect(url_for("student_login"))
+
+#     sid = str(user["id"])
+
+#     # Load Excel safely
+#     df = load_excel_safe(RECORD_FILE)
+
+#     # Ensure all required columns exist
+#     required_cols = [
+#         "indexshiftverify", "timestamp", "applicationtimestamp", "id", "name",
+#         "month", "date", "day", "shiftperiod", "shiftlevel", "clockin",
+#         "clockout", "shiftstart", "shiftend", "shifthours", "remarks"
+#     ]
+#     for col in required_cols:
+#         if col not in df.columns:
+#             df[col] = "" if col in [
+#                 "clockin", "clockout", "shiftstart", "shiftend", "remarks"
+#             ] else 0
+
+#     # Normalize
+#     df.columns = df.columns.str.strip().str.lower()
+#     df["id"] = df["id"].astype(str)
+#     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
+
+#     # Filter shifts for this student
+#     my_shifts = df[df["id"] == sid].copy()
+
+#     # --- CRITICAL: CLEAN NaN / NaT ---
+#     for col in ["clockin", "clockout", "shiftstart", "shiftend", "remarks"]:
+#         if col not in my_shifts.columns:
+#             my_shifts[col] = ""
+#         else:
+#             # Replace NaN / NaT / None with empty string
+#             my_shifts[col] = my_shifts[col].apply(
+#                 lambda x: "" if pd.isna(x) else str(x).strip())
+
+#     if "shifthours" not in my_shifts.columns:
+#         my_shifts["shifthours"] = ""
+
+#     # --- Render template ---
+#     return render_template(
+#         "student_attendance.html",
+#         user=user,
+#         shifts=my_shifts.to_dict("records"),
+#         now_time=now_sg()  # returns current SG time string
+#     )
+
+
+# # Student coach clockIn clockOut
+# @app.route("/student/attendance/clock", methods=["POST"])
+# def student_clock_action():
+#     user = session.get("user")
+#     if user is None or user.get("role") != "student coach":
+#         return jsonify(success=False, error="Unauthorized"), 403
+
+#     sid = str(user["id"])
+
+#     # --- Read JSON safely ---
+#     data = request.get_json(silent=True) or {}
+#     action = (data.get("action") or "").strip()
+#     key = (data.get("key") or "").strip()
+#     remarks = (data.get("remarks") or "").strip()
+
+#     if not action or not key:
+#         return jsonify(success=False, error="Missing data"), 400
+
+#     # --- Safe key parsing ---
+#     parts = key.split("_", 3)
+#     if len(parts) != 4:
+#         return jsonify(success=False, error="Invalid key format"), 400
+
+#     _, date_str, shift, level = parts
+
+#     # --- Load Excel ---
+#     df = load_excel_safe(RECORD_FILE)
+#     if df.empty:
+#         return jsonify(success=False, error="No shift records found"), 404
+
+#     # --- Normalize columns ---
+#     df.columns = df.columns.str.strip().str.lower()
+#     df["id"] = df["id"].astype(str)
+#     df["date"] = pd.to_datetime(df["date"],
+#                                 errors="coerce").dt.strftime("%Y-%m-%d")
+
+#     # CLEAN EMPTY VALUES BEFORE ANY CHECK
+#     for col in ["clockin", "clockout", "remarks"]:
+#         if col in df.columns:
+#             df[col] = df[col].where(df[col].notna(), "")
+#             df[col] = df[col].astype(str).str.strip()
+#             df[col] = df[col].replace({"nan": "", "NaT": ""})
+
+#     # --- Locate the exact shift row ---
+#     mask = ((df["id"] == sid) & (df["date"] == date_str) &
+#             (df["shiftperiod"].astype(str).str.lower() == shift.lower()) &
+#             (df["shiftlevel"].astype(str).str.lower() == level.lower()))
+
+#     if not mask.any():
+#         return jsonify(success=False, error="Shift record not found"), 404
+
+#     now_time = now_sg()
+
+#     # --- Read current values (single row) ---
+#     existing_clockin = df.loc[mask, "clockin"].iloc[0]
+#     existing_clockout = df.loc[mask, "clockout"].iloc[0]
+
+#     # --- Clock logic ---
+#     if action == "clockin":
+#         if existing_clockin != "":
+#             return jsonify(success=False, error="Already clocked in"), 400
+#         df.loc[mask, "clockin"] = now_time
+
+#     elif action == "clockout":
+#         if existing_clockin == "":
+#             return jsonify(success=False, error="Clock in first"), 400
+#         if existing_clockout != "":
+#             return jsonify(success=False, error="Already clocked out"), 400
+#         df.loc[mask, "clockout"] = now_time
+
+#     else:
+#         return jsonify(success=False, error="Invalid action"), 400
+
+#     if remarks:
+#         df.loc[mask, "remarks"] = remarks
+
+#     save_excel_safe(df, RECORD_FILE)
+
+#     return jsonify(success=True, time=now_time)
+
+
+# # Student coach attendance clock in clock out save without page
+# @app.route("/student/attendance/save", methods=["POST"])
+# def student_attendance_save():
+#     user = session.get("user")
+#     if user is None or user.get("role") != "student coach":
+#         return jsonify(success=False, error="Unauthorized"), 403
+
+#     sid = str(user["id"])
+
+#     # --- Read JSON or form safely (supports both) ---
+#     data = request.get_json(silent=True)
+#     if not data:
+#         data = request.form
+
+#     key = (data.get("key") or "").strip()
+#     shiftstart = (data.get("shiftstart") or "").strip()
+#     shiftend = (data.get("shiftend") or "").strip()
+#     remarks = (data.get("remarks") or "").strip()
+
+#     if not key:
+#         return jsonify(success=False, error="Missing key"), 400
+
+#     # --- Safe key parsing ---
+#     parts = key.split("_", 3)
+#     if len(parts) != 4:
+#         return jsonify(success=False, error="Invalid key format"), 400
+
+#     _, date_str, shift, level = parts
+
+#     # --- Load Excel ---
+#     df = load_excel_safe(RECORD_FILE)
+#     if df.empty:
+#         return jsonify(success=False, error="No records found"), 404
+
+#     # --- Normalize columns ---
+#     df.columns = df.columns.str.strip().str.lower()
+#     df["id"] = df["id"].astype(str)
+#     df["date"] = pd.to_datetime(df["date"],
+#                                 errors="coerce").dt.strftime("%Y-%m-%d")
+
+#     # --- Clean string columns (IMPORTANT) ---
+#     for col in [
+#             "clockin", "clockout", "shiftstart", "shiftend", "remarks",
+#             "shifthours"
+#     ]:
+#         if col in df.columns:
+#             df[col] = df[col].astype(str).str.strip()
+#             df[col] = df[col].replace({"nan": "", "NaT": ""})
+
+#     # --- Find the correct shift row ---
+#     mask = ((df["id"] == sid) & (df["date"] == date_str) &
+#             (df["shiftperiod"].astype(str).str.lower() == shift.lower()) &
+#             (df["shiftlevel"].astype(str).str.lower() == level.lower()))
+
+#     if not mask.any():
+#         return jsonify(success=False, error="Shift not found"), 404
+
+#     # --- Save fields ---
+#     df.loc[mask, "shiftstart"] = shiftstart
+#     df.loc[mask, "shiftend"] = shiftend
+#     df.loc[mask, "remarks"] = remarks
+
+#     # --- Auto-calculate shift hours safely ---
+#     if shiftstart and shiftend:
+#         try:
+#             start = datetime.strptime(shiftstart, "%H:%M")
+#             end = datetime.strptime(shiftend, "%H:%M")
+
+#             if end > start:
+#                 hours = (end - start).seconds / 3600
+#                 df.loc[mask, "shifthours"] = round(hours, 2)
+#         except Exception:
+#             pass  # Never crash user input
+
+#     # --- Save Excel ---
+#     save_excel_safe(df, RECORD_FILE)
+
+#     return jsonify(success=True)
+
 SG_TZ = ZoneInfo("Asia/Singapore")
+
+# -------------------- Helpers --------------------
 def now_sg():
     return datetime.now(SG_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
+def load_excel_safe(file):
+    try:
+        return pd.read_excel(file)
+    except Exception:
+        return pd.DataFrame()
+
+def save_excel_safe(df, file):
+    df.to_excel(file, index=False)
+
+# -------------------- Attendance Page --------------------
 @app.route("/student/attendance")
 def student_attendance():
     user = session.get("user")
-    if user is None or user.get("role") != "student coach":
+    if not user or user.get("role") != "student coach":
         return redirect(url_for("student_login"))
 
     sid = str(user["id"])
-
-    # Load Excel safely
     df = load_excel_safe(RECORD_FILE)
 
     # Ensure all required columns exist
     required_cols = [
-        "indexshiftverify", "timestamp", "applicationtimestamp", "id", "name",
-        "month", "date", "day", "shiftperiod", "shiftlevel", "clockin",
-        "clockout", "shiftstart", "shiftend", "shifthours", "remarks"
+        "indexshiftverify","timestamp","applicationtimestamp","id","name",
+        "month","date","day","shiftperiod","shiftlevel","clockin",
+        "clockout","shiftstart","shiftend","shifthours","remarks"
     ]
     for col in required_cols:
         if col not in df.columns:
-            df[col] = "" if col in [
-                "clockin", "clockout", "shiftstart", "shiftend", "remarks"
-            ] else 0
+            df[col] = "" if col in ["clockin","clockout","shiftstart","shiftend","remarks"] else 0
 
-    # Normalize
     df.columns = df.columns.str.strip().str.lower()
     df["id"] = df["id"].astype(str)
-    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
 
     # Filter shifts for this student
-    my_shifts = df[df["id"] == sid].copy()
-
-    # --- CRITICAL: CLEAN NaN / NaT ---
-    for col in ["clockin", "clockout", "shiftstart", "shiftend", "remarks"]:
-        if col not in my_shifts.columns:
-            my_shifts[col] = ""
-        else:
-            # Replace NaN / NaT / None with empty string
-            my_shifts[col] = my_shifts[col].apply(
-                lambda x: "" if pd.isna(x) else str(x).strip())
-
+    my_shifts = df[df["id"]==sid].copy()
+    for col in ["clockin","clockout","shiftstart","shiftend","remarks"]:
+        my_shifts[col] = my_shifts[col].apply(lambda x: "" if pd.isna(x) else str(x).strip())
     if "shifthours" not in my_shifts.columns:
         my_shifts["shifthours"] = ""
 
-    # --- Render template ---
     return render_template(
         "student_attendance.html",
         user=user,
         shifts=my_shifts.to_dict("records"),
-        now_time=now_sg()  # returns current SG time string
+        now_time=now_sg()
     )
 
-
-# Student coach clockIn clockOut
+# -------------------- Clock In / Clock Out --------------------
 @app.route("/student/attendance/clock", methods=["POST"])
 def student_clock_action():
     user = session.get("user")
-    if user is None or user.get("role") != "student coach":
+    if not user or user.get("role") != "student coach":
         return jsonify(success=False, error="Unauthorized"), 403
 
-    sid = str(user["id"])
-    action = request.form.get("action")  # clockin / clockout
-    key = request.form.get("key")
-    remarks = (request.form.get("remarks") or "").strip()
+    data = request.get_json(silent=True) or {}
+    action = data.get("action")
+    key = data.get("key")
 
     if not action or not key:
-        return jsonify(success=False, error="Missing data"), 400
+        return jsonify(success=False, error="Missing data"), 200  # ← NEVER 400
 
     try:
-        _, date_str, shift, level = key.split("_")
+        sid, date_str, shift, level = key.split("_", 3)
     except ValueError:
-        return jsonify(success=False, error="Invalid key"), 400
+        return jsonify(success=False, error="Bad key"), 200
 
     df = load_excel_safe(RECORD_FILE)
-    if df.empty:
-        return jsonify(success=False, error="No shift records found"), 404
-
     df.columns = df.columns.str.strip().str.lower()
     df["id"] = df["id"].astype(str)
-    df["date"] = pd.to_datetime(df["date"],
-                                errors="coerce").dt.strftime("%Y-%m-%d")
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
 
-    mask = ((df["id"] == sid) & (df["date"] == date_str) &
-            (df["shiftperiod"].astype(str).str.lower() == shift.lower()) &
-            (df["shiftlevel"].astype(str).str.lower() == level.lower()))
+    for col in ["clockin","clockout"]:
+        df[col] = df[col].fillna("").astype(str).str.strip()
+
+    mask = (
+        (df["id"] == sid) &
+        (df["date"] == date_str) &
+        (df["shiftperiod"].str.strip().str.lower() == shift.strip().lower()) &
+        (df["shiftlevel"].str.strip().str.lower() == level.strip().lower())
+    )
 
     if not mask.any():
-        return jsonify(success=False, error="Shift record not found"), 404
+        return jsonify(success=False, error="Shift not found"), 200
 
     now_time = now_sg()
 
     if action == "clockin":
-        if df.loc[mask, "clockin"].notna().any():
-            return jsonify(success=False, error="Already clocked in"), 400
-        df.loc[mask, "clockin"] = now_time
+        if df.loc[mask,"clockin"].iloc[0] == "":
+            df.loc[mask,"clockin"] = now_time
+        else:
+            now_time = df.loc[mask,"clockin"].iloc[0]
 
     elif action == "clockout":
-        if df.loc[mask, "clockin"].isna().any():
-            return jsonify(success=False, error="Clock in first"), 400
-        if df.loc[mask, "clockout"].notna().any():
-            return jsonify(success=False, error="Already clocked out"), 400
-        df.loc[mask, "clockout"] = now_time
-
-    else:
-        return jsonify(success=False, error="Invalid action"), 400
-
-    if remarks:
-        df.loc[mask, "remarks"] = remarks
+        if df.loc[mask,"clockin"].iloc[0] == "":
+            return jsonify(success=False, error="Clock in first"), 200
+        if df.loc[mask,"clockout"].iloc[0] == "":
+            df.loc[mask,"clockout"] = now_time
+        else:
+            now_time = df.loc[mask,"clockout"].iloc[0]
 
     save_excel_safe(df, RECORD_FILE)
-
     return jsonify(success=True, time=now_time)
 
-
-# Student coach attendance clock in clock out save without page
+# -------------------- Save Attendance --------------------
 @app.route("/student/attendance/save", methods=["POST"])
 def student_attendance_save():
     user = session.get("user")
-    if user is None or user.get("role") != "student coach":
+    if not user or user.get("role") != "student coach":
         return jsonify(success=False, error="Unauthorized"), 403
 
     sid = str(user["id"])
-    key = request.form.get("key")
-    shiftstart = request.form.get("shiftstart", "").strip()
-    shiftend = request.form.get("shiftend", "").strip()
-    remarks = request.form.get("remarks", "").strip()
+    data = request.get_json(silent=True) or request.form
+    key = (data.get("key") or "").strip()
+    shiftstart = (data.get("shiftstart") or "").strip()
+    shiftend = (data.get("shiftend") or "").strip()
+    remarks = (data.get("remarks") or "").strip()
 
-    try:
-        _, date_str, shift, level = key.split("_")
-    except Exception:
-        return jsonify(success=False, error="Invalid key"), 400
+    if not key:
+        return jsonify(success=False, error="Missing key"), 400
+
+    parts = key.split("_",3)
+    if len(parts) != 4:
+        return jsonify(success=False, error="Invalid key format"), 400
+    _, date_str, shift, level = parts
 
     df = load_excel_safe(RECORD_FILE)
     df.columns = df.columns.str.strip().str.lower()
     df["id"] = df["id"].astype(str)
-    df["date"] = pd.to_datetime(df["date"],
-                                errors="coerce").dt.strftime("%Y-%m-%d")
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.strftime("%Y-%m-%d")
 
-    mask = ((df["id"] == sid) & (df["date"] == date_str) &
-            (df["shiftperiod"] == shift) & (df["shiftlevel"] == level))
-
+    mask = (
+        (df["id"]==sid) &
+        (df["date"]==date_str) &
+        (df["shiftperiod"].astype(str).str.lower()==shift.lower()) &
+        (df["shiftlevel"].astype(str).str.lower()==level.lower())
+    )
     if not mask.any():
         return jsonify(success=False, error="Shift not found"), 404
 
-    # Save fields
-    df.loc[mask, "shiftstart"] = shiftstart
-    df.loc[mask, "shiftend"] = shiftend
-    df.loc[mask, "remarks"] = remarks
+    for col, val in [("shiftstart", shiftstart), ("shiftend", shiftend), ("remarks", remarks)]:
+        df.loc[mask, col] = val
 
-    # Auto calculate shift hours
-    try:
-        if shiftstart and shiftend:
-            start = datetime.strptime(shiftstart, "%H:%M")
-            end = datetime.strptime(shiftend, "%H:%M")
-            hours = (end - start).seconds / 3600
-            df.loc[mask, "shifthours"] = round(hours, 2)
-    except Exception:
-        pass  # never crash user input
+    # Auto-calc hours
+    if shiftstart and shiftend:
+        try:
+            start = datetime.strptime(shiftstart,"%H:%M")
+            end = datetime.strptime(shiftend,"%H:%M")
+            if end>start:
+                df.loc[mask,"shifthours"] = round((end-start).seconds/3600,2)
+        except:
+            pass
 
     save_excel_safe(df, RECORD_FILE)
     return jsonify(success=True)
-
 
 # Admin verify student coach shift
 SG_TZ = ZoneInfo("Asia/Singapore")
@@ -1259,11 +1468,6 @@ def admin_verify_shifts():
         shifts = []
     else:
         rec_df.columns = rec_df.columns.str.strip().str.lower()
-        # map shift record fields
-        rec_df.rename(columns={
-            "remarks": "duty",
-            "shifthours": "shifthour"
-        }, inplace=True)
         rec_df["date"] = pd.to_datetime(rec_df["date"], errors="coerce")
 
         # Sort by date ascending
@@ -1584,11 +1788,3 @@ def admin_download_excel(filename):
 @app.route("/health")
 def health():
     return "UptimeRobot ok."
-
-
-# ==========================
-# RUN
-# ==========================
-# if __name__ == "__main__":
-#     port = int(os.environ.get("PORT", 5000))
-#     app.run(host="0.0.0.0", port=port, debug=True)
