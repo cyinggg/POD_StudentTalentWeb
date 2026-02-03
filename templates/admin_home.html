@@ -1,21 +1,53 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Admin Home</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Home</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_home.css') }}">
 </head>
 <body>
-    <h2>Welcome, {{ user.name }}</h2>
 
-    <ul>
-        <li><a href="/admin/slot_control">Slot Control</a></li>
-        <li><a href="/admin/shift_application">Shift Applications</a></li>
-        <li><a href="/admin/review">Shift Records</a></li>
-        <li><a href="/admin/verify_shifts">Shift Verification</a></li>
-        <li><a href="/admin/manage_excels">Download / Upload</a></li>
-        <li><a href="/projecthub_duty_calendar">ProjectHub Calendar</a></li>
-    </ul>
+<div class="container">
+    <header>
+        <h1>Welcome, {{ user.name }}</h1>
+        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+    </header>
 
-    <br>
-    <a href="/logout">Logout</a>
+    <main>
+        <div class="cards">
+            <a href="/admin/slot_control" class="card">
+                <div class="card-title">Slot Control</div>
+                <div class="card-desc">Manage and adjust shift slots for students.</div>
+            </a>
+
+            <a href="/admin/shift_application" class="card">
+                <div class="card-title">Shift Applications</div>
+                <div class="card-desc">View all student shift applications.</div>
+            </a>
+
+            <a href="/admin/review" class="card">
+                <div class="card-title">Shift Records</div>
+                <div class="card-desc">Review historical shift records.</div>
+            </a>
+
+            <a href="/admin/verify_shifts" class="card">
+                <div class="card-title">Shift Verification</div>
+                <div class="card-desc">Verify completed shifts and approve attendance.</div>
+            </a>
+
+            <a href="/admin/manage_excels" class="card">
+                <div class="card-title">Download / Upload</div>
+                <div class="card-desc">Manage Excel files for attendance and schedules.</div>
+            </a>
+
+            <a href="/projecthub_duty_calendar" class="card">
+                <div class="card-title">ProjectHub Calendar</div>
+                <div class="card-desc">Access the ProjectHub duty calendar.</div>
+            </a>
+        </div>
+    </main>
+</div>
+
 </body>
 </html>

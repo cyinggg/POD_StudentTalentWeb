@@ -8,3 +8,4 @@ apscheduler
 python-telegram-bot==13.15
 tzlocal<3.0
 pytz
+python-dotenv

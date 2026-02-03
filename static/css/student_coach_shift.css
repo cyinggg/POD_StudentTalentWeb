@@ -50,10 +50,12 @@ body {
     cursor: pointer;
 }
 
-.shift-block.open { background-color: #e0f7fa; color: #006064; }
-.shift-block.pending { background-color: #fff9c4; color: #f57f17; }
-.shift-block.approved { background-color: #c8e6c9; color: #2e7d32; }
-.shift-block.rejected { background-color: #ffcdd2; color: #c62828; }
+.shift-block { margin:2px; padding:2px; border-radius:4px; cursor:pointer; text-align:center; }
+.shift-block.ineligible { background-color:#ffcccc; cursor:not-allowed; color:#888; }
+.shift-block.open { background-color: #99ecff; color: #000000; }
+.shift-block.pending { background-color: #f8ff66; color: #000000; }
+.shift-block.approved { background-color: #33ff33; color: #000000; }
+.shift-block.rejected { background-color: #ffcdd2; color: #000000; }
 
 /* Calendar */
 .calendar-grid {
@@ -108,8 +110,3 @@ body {
 .calendar-week { display:grid; grid-template-columns:repeat(7,1fr); }
 .calendar-day { border:1px solid #ccc; min-height:80px; padding:2px; }
 .day-number { font-weight:bold; }
-.shift-block { margin:2px; padding:2px; border-radius:4px; cursor:pointer; text-align:center; }
-.shift-block.open { background-color:#99ecff; }
-.shift-block.pending { background-color:#f8ff66; }
-.shift-block.approved { background-color:#33ff33; }
-.shift-block.ineligible { background-color:#ffcccc; cursor:not-allowed; color:#888; }

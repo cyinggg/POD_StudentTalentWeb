@@ -1,19 +1,50 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Student Coach Home</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Coach Home</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/student_home.css') }}">
 </head>
 <body>
-    <h2>Welcome, {{ user.name }}</h2>
 
-    <ul>
-        <li><a href="/student_coach/shifts">Apply for Shift</a></li>
-        <li><a href="/student/my_applications">My Applications</a></li>
-        <li><a href="/student/apply">My Approved Shifts</a></li>
-        <li><a href="/student/attendance">Clock In / Clock Out</a></li>
-    </ul>
+<div class="container">
+    <header>
+        <h1>Welcome, {{ user.name }}</h1>
+        <a href="{{ url_for('logout') }}" class="logout-btn">Logout</a>
+    </header>
 
-    <br>
-    <a href="/logout">Logout</a>
+    <main>
+        <div class="cards">
+            <a href="/student_coach/shifts" class="card">
+                <div class="card-title">Apply for Shift</div>
+                <div class="card-desc">View available shifts and submit your application.</div>
+            </a>
+
+            <a href="/student/my_applications" class="card">
+                <div class="card-title">My Applications</div>
+                <div class="card-desc">Check the status of your shift applications.</div>
+            </a>
+
+            <a href="/student/apply" class="card">
+                <div class="card-title">My Approved Shifts</div>
+                <div class="card-desc">See all shifts that have been approved for you.</div>
+            </a>
+
+            <a href="/student/attendance" class="card">
+                <div class="card-title">Clock In / Clock Out</div>
+                <div class="card-desc">Record your attendance in real-time.</div>
+            </a>
+
+            <a href="/projecthub_duty_calendar" class="card">
+                <div class="card-title">ProjectHub Calendar</div>
+                <div class="card-desc">Access the ProjectHub duty calendar.</div>
+            </a>
+            
+        </div>
+    </main>
+</div>
+
 </body>
 </html>
+

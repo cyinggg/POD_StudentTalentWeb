@@ -1,127 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Admin Manage Excel Files</title>
-
-    <!-- External CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin_manage_excel.css') }}">
-
-    <!-- Inline CSS (kept as-is, cleaned only) -->
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        h1 {
-            margin-bottom: 20px;
-        }
-        form, ul {
-            margin-bottom: 20px;
-        }
-        input[type="file"] {
-            margin-right: 10px;
-        }
-        .btn, button {
-            padding: 6px 15px;
-            border: none;
-            background-color: #007bff;
-            color: white;
-            border-radius: 3px;
-            cursor: pointer;
-            text-decoration: none;
-        }
-        .btn:hover, button:hover {
-            background-color: #0056b3;
-        }
-        ul li {
-            margin-bottom: 10px;
-        }
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 10px 20px;
-            color: #fff;
-            border-radius: 5px;
-            z-index: 9999;
-            display: none;
-        }
-        .toast.success { background-color: green; }
-        .toast.error { background-color: red; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin: Manage Excel Files</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_manage_excel.css') }}">
 </head>
-
 <body>
 
-<h1>Admin: Manage Excel Files</h1>
+<div class="container">
+    <header>
+        <h1>Manage Excel Files</h1>
+        <div class="nav-buttons">
+            <button type="button" onclick="window.history.back();" class="btn">Back</button>
+            <a href="{{ url_for('admin_home') }}" class="btn">Home</a>
+        </div>
+    </header>
 
-<!-- Navigation -->
-<div style="display:flex; gap:10px; margin-bottom:20px;">
-    <button type="button" onclick="window.history.back();" class="btn">Back</button>
-    <a href="{{ url_for('admin_home') }}" class="btn">Home</a>
+    <main>
+        <!-- Upload Form -->
+        <section class="upload-section">
+            <h2>Upload Excel File</h2>
+            <form method="POST" action="{{ url_for('admin_upload_excel') }}" enctype="multipart/form-data">
+                <label class="file-label">
+                    Select File:
+                    <input type="file" name="excel_file" accept=".xlsx,.xls" required>
+                </label>
+                <button type="submit" class="btn upload-btn">Upload</button>
+            </form>
+        </section>
+
+        <!-- Download Section -->
+        <section class="download-section">
+            <h2>Available Excel Files</h2>
+            <ul class="file-list">
+                {% for file in excel_files %}
+                    <li>
+                        <a href="{{ url_for('admin_download_excel', filename=file) }}" class="file-link">
+                            {{ file }}
+                        </a>
+                    </li>
+                {% else %}
+                    <li>No Excel files found.</li>
+                {% endfor %}
+            </ul>
+        </section>
+    </main>
 </div>
-
-<!-- Upload Form -->
-<form method="POST"
-      action="{{ url_for('admin_upload_excel') }}"
-      enctype="multipart/form-data">
-    <label>
-        Upload Excel File:
-        <input type="file" name="excel_file" accept=".xlsx,.xls" required>
-    </label>
-    <button type="submit">Upload</button>
-</form>
-
-<!-- Download Section -->
-<h2>Download Excel Files</h2>
-
-<ul>
-    {% for file in excel_files %}
-        <li>
-            <a href="{{ url_for('admin_download_excel', filename=file) }}">
-                {{ file }}
-            </a>
-        </li>
-    {% else %}
-        <li>No Excel files found.</li>
-    {% endfor %}
-</ul>
 
 <!-- Toast -->
 <div id="toast" class="toast"></div>
 
-<!-- ================= JS SECTION ================= -->
-
-<!-- Existing JS files (kept) -->
+<!-- JS -->
 <script src="{{ url_for('static', filename='js/admin_manage_excel.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin_slot_control.js') }}"></script>
 
-<!-- Toast Logic (kept) -->
 <script>
-    function showToast(message, success = true) {
-        const toast = document.getElementById("toast");
-        toast.textContent = message;
-        toast.className = "toast " + (success ? "success" : "error");
-        toast.style.display = "block";
+function showToast(message, success = true) {
+    const toast = document.getElementById("toast");
+    toast.textContent = message;
+    toast.className = "toast " + (success ? "success" : "error");
+    toast.style.display = "block";
 
-        setTimeout(() => {
-            toast.style.display = "none";
-        }, 3000);
-    }
+    setTimeout(() => {
+        toast.style.display = "none";
+    }, 3000);
+}
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-            showToast("{{ message|escape }}", "{{ category }}" === "success");
-        {% endfor %}
-    {% endif %}
-    {% endwith %}
-</script>
-
-<!-- Optional: expose flash messages to JS (kept) -->
-<script>
-    window.FLASH_MESSAGES = {{ flash_messages | tojson }};
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+    {% for category, message in messages %}
+        showToast("{{ message|escape }}", "{{ category }}" === "success");
+    {% endfor %}
+{% endif %}
+{% endwith %}
 </script>
 
 </body>

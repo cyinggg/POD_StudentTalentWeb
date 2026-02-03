@@ -1,83 +1,153 @@
+/* General Body */
 body {
-    font-family: Arial, sans-serif;
-    background: #f7f8fa;
-    margin: 20px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f4f4f4;
+    color: #1c1c1c;
+    margin: 0;
+    padding: 20px;
 }
 
+/* Header Section */
+.header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.user-name {
+    font-size: 1.1rem;
+    margin: 5px 0;
+}
+
+.current-time {
+    font-size: 0.95rem;
+    color: #555;
+}
+
+/* Navigation Buttons */
 .nav {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-start;
     margin-bottom: 15px;
 }
 
-.nav button, .nav a {
-    padding: 6px 12px;
-    margin-right: 8px;
-    text-decoration: none;
-    border-radius: 6px;
-    border: none;
-    background: #2d7ff9;
+.btn-nav {
+    padding: 7px 15px;
+    background-color: #c62828; /* Red */
     color: white;
+    border: none;
+    border-radius: 4px;
+    text-decoration: none;
     cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-nav:hover {
+    background-color: #b71c1c;
+}
+
+/* Table Container */
+.table-container {
+    overflow-x: auto;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
-    background: white;
-    border-radius: 10px;
-    overflow: hidden;
-    margin-top: 10px;
+    background-color: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
 
-th {
-    background: #eef2f7;
+thead {
+    background-color: #1c1c1c;
+    color: white;
+}
+
+thead th {
     padding: 10px;
     text-align: center;
 }
 
-td {
-    padding: 10px;
+tbody td {
+    padding: 8px;
     text-align: center;
-    vertical-align: middle;
+    border-bottom: 1px solid #ddd;
 }
 
-tr:nth-child(even) {
-    background: #fafafa;
-}
-
-button {
-    padding: 6px 10px;
-    border-radius: 6px;
+/* Clock Buttons */
+.btn-clock {
+    padding: 5px 12px;
     border: none;
+    border-radius: 4px;
     cursor: pointer;
+    font-weight: bold;
+    transition: 0.2s;
 }
 
 .btn-clockin {
-    background: #28a745;
+    background-color: #2e7d32; /* Green */
     color: white;
+}
+
+.btn-clockin:hover {
+    background-color: #1b5e20;
 }
 
 .btn-clockout {
-    background: #dc3545;
+    background-color: #c62828; /* Red */
     color: white;
 }
 
-button:disabled {
-    background: #ccc;
+.btn-clockout:hover {
+    background-color: #b71c1c;
+}
+
+.btn-clock:disabled {
+    background-color: #999;
     cursor: not-allowed;
 }
 
+/* Save Button */
+.btn-save {
+    background-color: #1565c0; /* Blue */
+    color: white;
+    border-radius: 4px;
+    padding: 5px 10px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.btn-save:hover {
+    background-color: #0d47a1;
+}
+
+/* Inputs */
+.time-input, .remarks-input {
+    padding: 4px 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 90%;
+}
+
+/* Clock Time Display */
 .clock-time {
     font-weight: bold;
-    color: #333;
+    color: #2e7d32; /* Green for clock-in/out */
 }
 
-input[type="time"], input[type="text"] {
-    padding: 5px;
-    border-radius: 6px;
-    border: 1px solid #ccc;
-}
+/* Responsive */
+@media screen and (max-width: 768px) {
+    .nav {
+        flex-direction: column;
+        gap: 5px;
+    }
 
-.btn-save {
-    background: #444;
-    color: white;
+    table {
+        font-size: 0.9rem;
+    }
+
+    .time-input, .remarks-input {
+        width: 100%;
+    }
 }

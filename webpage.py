@@ -13,6 +13,7 @@ import shutil
 from zoneinfo import ZoneInfo
 from werkzeug.utils import secure_filename
 import base64
+import pytz
 
 # Initialize App
 app = Flask(__name__)
@@ -112,124 +113,190 @@ def normalize_shift_df(df):
     return df
 
 
-# Home Page Route
+# # Home Page Route
+# @app.route("/")
+# def home():
+#     return render_template("home.html")
+
+
+# # Role Selection Page
+# @app.route("/select_role")
+# def select_role():
+#     return render_template("select_role.html")
+
+
+# # Student coach login
+# # GET show login page, POST validate login
+# @app.route("/login/student", methods=["GET", "POST"])
+# def student_login():
+#     if request.method == "POST":
+#         user_id = request.form.get("id", "").strip()
+#         contact = request.form.get("contact", "").strip()
+
+#         df = load_excel_safe(ACCOUNT_FILE)
+
+#         if df.empty:
+#             return render_template("student_login.html",
+#                                    error="No account data found")
+
+#         # Normalize all columns safely
+#         df.columns = df.columns.str.strip().str.lower()  # lowercase everything
+#         df = df.fillna("")  # prevent NaN issues
+
+#         # Ensure columns exist
+#         for col in [
+#                 "id", "name", "contact", "role", "onjobtrain", "nightshift"
+#         ]:
+#             if col not in df.columns:
+#                 df[col] = "" if col in ["id", "name", "contact", "role"] else 0
+
+#         # Convert to string and strip
+#         df["id"] = df["id"].astype(str).str.strip()
+#         df["contact"] = df["contact"].astype(str).str.replace(
+#             ".0", "", regex=False).str.strip()
+#         df["role"] = df["role"].astype(str).str.strip().str.lower()
+#         df["name"] = df["name"].astype(str).str.strip()
+#         df["onjobtrain"] = df["onjobtrain"].fillna(0).astype(int)
+#         df["nightshift"] = df["nightshift"].fillna(0).astype(int)
+
+#         # Filter for student coach
+#         user = df[(df["id"] == user_id) & (df["contact"] == contact) &
+#                   (df["role"] == "student coach")]
+
+#         if user.empty:
+#             return render_template("student_login.html",
+#                                    error="Invalid ID or Contact")
+
+#         session["user"] = {
+#             "id": user.iloc[0]["id"],
+#             "name": user.iloc[0]["name"],
+#             "role": "student coach",
+#             "onjobtrain": int(user.iloc[0]["onjobtrain"]),
+#             "nightShift": int(user.iloc[0]["nightshift"])
+#         }
+
+#         return redirect(url_for("student_home"))
+
+#     return render_template("student_login.html")
+
+
+# # Admin login
+# @app.route("/login/admin", methods=["GET", "POST"])
+# def admin_login():
+#     if request.method == "POST":
+#         user_id = request.form.get("id", "").strip()
+#         contact = request.form.get("contact", "").strip()
+
+#         df = load_excel_safe(ACCOUNT_FILE)
+
+#         if df.empty:
+#             return render_template("admin_login.html",
+#                                    error="No account data found")
+
+#         # Normalize all columns safely
+#         df.columns = df.columns.str.strip().str.lower()
+#         df = df.fillna("")
+
+#         for col in ["id", "name", "contact", "role"]:
+#             if col not in df.columns:
+#                 df[col] = ""
+
+#         df["id"] = df["id"].astype(str).str.strip()
+#         df["contact"] = df["contact"].astype(str).str.replace(
+#             ".0", "", regex=False).str.strip()
+#         df["role"] = df["role"].astype(str).str.strip().str.lower()
+#         df["name"] = df["name"].astype(str).str.strip()
+
+#         # Filter for admin
+#         user = df[(df["id"] == user_id) & (df["contact"] == contact) &
+#                   (df["role"] == "admin")]
+
+#         if user.empty:
+#             return render_template("admin_login.html",
+#                                    error="Invalid ID or Contact")
+
+#         session["user"] = {
+#             "id": user.iloc[0]["id"],
+#             "name": user.iloc[0]["name"],
+#             "role": "admin"
+#         }
+
+#         return redirect(url_for("admin_home"))
+
+#     return render_template("admin_login.html")
+
+# Start page
+# Auto redirect from Home if already logged in
 @app.route("/")
 def home():
-    return render_template("home.html")
+    # If user already logged in, redirect to their home
+    if "user" in session:
+        if session["user"]["role"] == "admin":
+            return redirect(url_for("admin_home"))
+        else:
+            return redirect(url_for("student_home"))
+    # Otherwise, show unified login page
+    return redirect(url_for("unified_login"))
 
-
-# Role Selection Page
-@app.route("/select_role")
-def select_role():
-    return render_template("select_role.html")
-
-
-# Student coach login
-# GET show login page, POST validate login
-@app.route("/login/student", methods=["GET", "POST"])
-def student_login():
+# Unified login for student or admin
+@app.route("/login", methods=["GET", "POST"])
+def unified_login():
     if request.method == "POST":
-        user_id = request.form.get("id", "").strip()
-        contact = request.form.get("contact", "").strip()
+        data = request.get_json() or request.form
+        user_id = (data.get("id") or "").strip()
+        contact = (data.get("contact") or "").strip()
 
         df = load_excel_safe(ACCOUNT_FILE)
-
         if df.empty:
-            return render_template("student_login.html",
-                                   error="No account data found")
+            return jsonify(success=False, error="No account data found") if request.is_json else \
+                   render_template("login.html", error="No account data found")
 
-        # Normalize all columns safely
-        df.columns = df.columns.str.strip().str.lower()  # lowercase everything
-        df = df.fillna("")  # prevent NaN issues
-
-        # Ensure columns exist
-        for col in [
-                "id", "name", "contact", "role", "onjobtrain", "nightshift"
-        ]:
+        # Normalize columns
+        df.columns = df.columns.str.strip().str.lower()
+        df = df.fillna("")
+        for col in ["id","name","contact","role","onjobtrain","nightshift"]:
             if col not in df.columns:
-                df[col] = "" if col in ["id", "name", "contact", "role"] else 0
+                df[col] = "" if col in ["id","name","contact","role"] else 0
 
-        # Convert to string and strip
         df["id"] = df["id"].astype(str).str.strip()
-        df["contact"] = df["contact"].astype(str).str.replace(
-            ".0", "", regex=False).str.strip()
+        df["contact"] = df["contact"].astype(str).str.replace(".0","", regex=False).str.strip()
         df["role"] = df["role"].astype(str).str.strip().str.lower()
         df["name"] = df["name"].astype(str).str.strip()
         df["onjobtrain"] = df["onjobtrain"].fillna(0).astype(int)
         df["nightshift"] = df["nightshift"].fillna(0).astype(int)
 
-        # Filter for student coach
-        user = df[(df["id"] == user_id) & (df["contact"] == contact) &
-                  (df["role"] == "student coach")]
-
+        # Check for matching user
+        user = df[(df["id"]==user_id) & (df["contact"]==contact)]
         if user.empty:
-            return render_template("student_login.html",
-                                   error="Invalid ID or Contact")
+            return jsonify(success=False, error="Invalid ID or Contact") if request.is_json else \
+                   render_template("login.html", error="Invalid ID or Contact")
 
+        role = user.iloc[0]["role"]
         session["user"] = {
             "id": user.iloc[0]["id"],
             "name": user.iloc[0]["name"],
-            "role": "student coach",
+            "role": role,
             "onjobtrain": int(user.iloc[0]["onjobtrain"]),
             "nightShift": int(user.iloc[0]["nightshift"])
         }
 
-        return redirect(url_for("student_home"))
+        # Redirect based on role
+        if request.is_json:
+            if role == "student coach":
+                return jsonify(success=True, redirect=url_for("student_home"))
+            else:
+                return jsonify(success=True, redirect=url_for("admin_home"))
+        else:
+            return redirect(url_for("student_home") if role=="student coach" else url_for("admin_home"))
 
-    return render_template("student_login.html")
-
-
-# Admin login
-@app.route("/login/admin", methods=["GET", "POST"])
-def admin_login():
-    if request.method == "POST":
-        user_id = request.form.get("id", "").strip()
-        contact = request.form.get("contact", "").strip()
-
-        df = load_excel_safe(ACCOUNT_FILE)
-
-        if df.empty:
-            return render_template("admin_login.html",
-                                   error="No account data found")
-
-        # Normalize all columns safely
-        df.columns = df.columns.str.strip().str.lower()
-        df = df.fillna("")
-
-        for col in ["id", "name", "contact", "role"]:
-            if col not in df.columns:
-                df[col] = ""
-
-        df["id"] = df["id"].astype(str).str.strip()
-        df["contact"] = df["contact"].astype(str).str.replace(
-            ".0", "", regex=False).str.strip()
-        df["role"] = df["role"].astype(str).str.strip().str.lower()
-        df["name"] = df["name"].astype(str).str.strip()
-
-        # Filter for admin
-        user = df[(df["id"] == user_id) & (df["contact"] == contact) &
-                  (df["role"] == "admin")]
-
-        if user.empty:
-            return render_template("admin_login.html",
-                                   error="Invalid ID or Contact")
-
-        session["user"] = {
-            "id": user.iloc[0]["id"],
-            "name": user.iloc[0]["name"],
-            "role": "admin"
-        }
-
-        return redirect(url_for("admin_home"))
-
-    return render_template("admin_login.html")
-
+    # GET request
+    return render_template("login.html")
 
 # Student coach home
 @app.route("/student/home")
 def student_home():
     if "user" not in session or session["user"]["role"] != "student coach":
-        return redirect(url_for("student_login"))
+        return redirect(url_for("unified_login"))
 
     return render_template("student_home.html", user=session["user"])
 
@@ -238,7 +305,7 @@ def student_home():
 @app.route("/admin/home")
 def admin_home():
     if "user" not in session or session["user"]["role"] != "admin":
-        return redirect(url_for("admin_login"))
+        return redirect(url_for("unified_login"))
 
     return render_template("admin_home.html", user=session["user"])
 
@@ -480,6 +547,10 @@ def check_booking_eligibility(user, slot):
 # Student coach shift booking page
 @app.route("/student_coach/shifts")
 def student_coach_shifts():
+    # Singapore timezone
+    sg_tz = pytz.timezone("Asia/Singapore")
+    today = datetime.now(sg_tz).date()  # <-- ensures today is correct SG date
+
     user = session.get("user")
     if not user or user.get("role") != "student coach":
         return redirect(url_for("student_login"))
@@ -633,7 +704,7 @@ def student_coach_shifts():
                            weeks=weeks,
                            month=month,
                            year=year,
-                           today=date.today(),
+                           today=today,
                            view=request.args.get("view", "calendar"))
 
 
@@ -1068,225 +1139,6 @@ def update_shift_application():
 
 
 # Student coach attendance page
-# SG_TZ = ZoneInfo("Asia/Singapore")
-
-
-# def now_sg():
-#     return datetime.now(SG_TZ).strftime("%Y-%m-%d %H:%M:%S")
-
-
-# @app.route("/student/attendance")
-# def student_attendance():
-#     user = session.get("user")
-#     if user is None or user.get("role") != "student coach":
-#         return redirect(url_for("student_login"))
-
-#     sid = str(user["id"])
-
-#     # Load Excel safely
-#     df = load_excel_safe(RECORD_FILE)
-
-#     # Ensure all required columns exist
-#     required_cols = [
-#         "indexshiftverify", "timestamp", "applicationtimestamp", "id", "name",
-#         "month", "date", "day", "shiftperiod", "shiftlevel", "clockin",
-#         "clockout", "shiftstart", "shiftend", "shifthours", "remarks"
-#     ]
-#     for col in required_cols:
-#         if col not in df.columns:
-#             df[col] = "" if col in [
-#                 "clockin", "clockout", "shiftstart", "shiftend", "remarks"
-#             ] else 0
-
-#     # Normalize
-#     df.columns = df.columns.str.strip().str.lower()
-#     df["id"] = df["id"].astype(str)
-#     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
-
-#     # Filter shifts for this student
-#     my_shifts = df[df["id"] == sid].copy()
-
-#     # --- CRITICAL: CLEAN NaN / NaT ---
-#     for col in ["clockin", "clockout", "shiftstart", "shiftend", "remarks"]:
-#         if col not in my_shifts.columns:
-#             my_shifts[col] = ""
-#         else:
-#             # Replace NaN / NaT / None with empty string
-#             my_shifts[col] = my_shifts[col].apply(
-#                 lambda x: "" if pd.isna(x) else str(x).strip())
-
-#     if "shifthours" not in my_shifts.columns:
-#         my_shifts["shifthours"] = ""
-
-#     # --- Render template ---
-#     return render_template(
-#         "student_attendance.html",
-#         user=user,
-#         shifts=my_shifts.to_dict("records"),
-#         now_time=now_sg()  # returns current SG time string
-#     )
-
-
-# # Student coach clockIn clockOut
-# @app.route("/student/attendance/clock", methods=["POST"])
-# def student_clock_action():
-#     user = session.get("user")
-#     if user is None or user.get("role") != "student coach":
-#         return jsonify(success=False, error="Unauthorized"), 403
-
-#     sid = str(user["id"])
-
-#     # --- Read JSON safely ---
-#     data = request.get_json(silent=True) or {}
-#     action = (data.get("action") or "").strip()
-#     key = (data.get("key") or "").strip()
-#     remarks = (data.get("remarks") or "").strip()
-
-#     if not action or not key:
-#         return jsonify(success=False, error="Missing data"), 400
-
-#     # --- Safe key parsing ---
-#     parts = key.split("_", 3)
-#     if len(parts) != 4:
-#         return jsonify(success=False, error="Invalid key format"), 400
-
-#     _, date_str, shift, level = parts
-
-#     # --- Load Excel ---
-#     df = load_excel_safe(RECORD_FILE)
-#     if df.empty:
-#         return jsonify(success=False, error="No shift records found"), 404
-
-#     # --- Normalize columns ---
-#     df.columns = df.columns.str.strip().str.lower()
-#     df["id"] = df["id"].astype(str)
-#     df["date"] = pd.to_datetime(df["date"],
-#                                 errors="coerce").dt.strftime("%Y-%m-%d")
-
-#     # CLEAN EMPTY VALUES BEFORE ANY CHECK
-#     for col in ["clockin", "clockout", "remarks"]:
-#         if col in df.columns:
-#             df[col] = df[col].where(df[col].notna(), "")
-#             df[col] = df[col].astype(str).str.strip()
-#             df[col] = df[col].replace({"nan": "", "NaT": ""})
-
-#     # --- Locate the exact shift row ---
-#     mask = ((df["id"] == sid) & (df["date"] == date_str) &
-#             (df["shiftperiod"].astype(str).str.lower() == shift.lower()) &
-#             (df["shiftlevel"].astype(str).str.lower() == level.lower()))
-
-#     if not mask.any():
-#         return jsonify(success=False, error="Shift record not found"), 404
-
-#     now_time = now_sg()
-
-#     # --- Read current values (single row) ---
-#     existing_clockin = df.loc[mask, "clockin"].iloc[0]
-#     existing_clockout = df.loc[mask, "clockout"].iloc[0]
-
-#     # --- Clock logic ---
-#     if action == "clockin":
-#         if existing_clockin != "":
-#             return jsonify(success=False, error="Already clocked in"), 400
-#         df.loc[mask, "clockin"] = now_time
-
-#     elif action == "clockout":
-#         if existing_clockin == "":
-#             return jsonify(success=False, error="Clock in first"), 400
-#         if existing_clockout != "":
-#             return jsonify(success=False, error="Already clocked out"), 400
-#         df.loc[mask, "clockout"] = now_time
-
-#     else:
-#         return jsonify(success=False, error="Invalid action"), 400
-
-#     if remarks:
-#         df.loc[mask, "remarks"] = remarks
-
-#     save_excel_safe(df, RECORD_FILE)
-
-#     return jsonify(success=True, time=now_time)
-
-
-# # Student coach attendance clock in clock out save without page
-# @app.route("/student/attendance/save", methods=["POST"])
-# def student_attendance_save():
-#     user = session.get("user")
-#     if user is None or user.get("role") != "student coach":
-#         return jsonify(success=False, error="Unauthorized"), 403
-
-#     sid = str(user["id"])
-
-#     # --- Read JSON or form safely (supports both) ---
-#     data = request.get_json(silent=True)
-#     if not data:
-#         data = request.form
-
-#     key = (data.get("key") or "").strip()
-#     shiftstart = (data.get("shiftstart") or "").strip()
-#     shiftend = (data.get("shiftend") or "").strip()
-#     remarks = (data.get("remarks") or "").strip()
-
-#     if not key:
-#         return jsonify(success=False, error="Missing key"), 400
-
-#     # --- Safe key parsing ---
-#     parts = key.split("_", 3)
-#     if len(parts) != 4:
-#         return jsonify(success=False, error="Invalid key format"), 400
-
-#     _, date_str, shift, level = parts
-
-#     # --- Load Excel ---
-#     df = load_excel_safe(RECORD_FILE)
-#     if df.empty:
-#         return jsonify(success=False, error="No records found"), 404
-
-#     # --- Normalize columns ---
-#     df.columns = df.columns.str.strip().str.lower()
-#     df["id"] = df["id"].astype(str)
-#     df["date"] = pd.to_datetime(df["date"],
-#                                 errors="coerce").dt.strftime("%Y-%m-%d")
-
-#     # --- Clean string columns (IMPORTANT) ---
-#     for col in [
-#             "clockin", "clockout", "shiftstart", "shiftend", "remarks",
-#             "shifthours"
-#     ]:
-#         if col in df.columns:
-#             df[col] = df[col].astype(str).str.strip()
-#             df[col] = df[col].replace({"nan": "", "NaT": ""})
-
-#     # --- Find the correct shift row ---
-#     mask = ((df["id"] == sid) & (df["date"] == date_str) &
-#             (df["shiftperiod"].astype(str).str.lower() == shift.lower()) &
-#             (df["shiftlevel"].astype(str).str.lower() == level.lower()))
-
-#     if not mask.any():
-#         return jsonify(success=False, error="Shift not found"), 404
-
-#     # --- Save fields ---
-#     df.loc[mask, "shiftstart"] = shiftstart
-#     df.loc[mask, "shiftend"] = shiftend
-#     df.loc[mask, "remarks"] = remarks
-
-#     # --- Auto-calculate shift hours safely ---
-#     if shiftstart and shiftend:
-#         try:
-#             start = datetime.strptime(shiftstart, "%H:%M")
-#             end = datetime.strptime(shiftend, "%H:%M")
-
-#             if end > start:
-#                 hours = (end - start).seconds / 3600
-#                 df.loc[mask, "shifthours"] = round(hours, 2)
-#         except Exception:
-#             pass  # Never crash user input
-
-#     # --- Save Excel ---
-#     save_excel_safe(df, RECORD_FILE)
-
-#     return jsonify(success=True)
-
 SG_TZ = ZoneInfo("Asia/Singapore")
 
 # -------------------- Helpers --------------------
@@ -1450,11 +1302,8 @@ def student_attendance_save():
 
 # Admin verify student coach shift
 SG_TZ = ZoneInfo("Asia/Singapore")
-
-
 def now_sg():
     return datetime.now(SG_TZ).strftime("%Y-%m-%d %H:%M:%S")
-
 
 # Admin AJAX verify and save sign
 @app.route("/admin/verify_shifts")
@@ -1604,10 +1453,13 @@ def admin_verify_shift_save():
 # Projecthub duty calendar
 @app.route("/projecthub_duty_calendar")
 def projecthub_duty_calendar():
+    # Set Singapore timezone
+    sg_tz = pytz.timezone("Asia/Singapore")
+    today = datetime.now(sg_tz).date()  # only the date part
+
     # ------------------------------
     # Date / navigation setup
     # ------------------------------
-    today = date.today()
     month = request.args.get("month", today.month, type=int)
     year = request.args.get("year", today.year, type=int)
 
